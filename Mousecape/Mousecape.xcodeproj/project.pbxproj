@@ -29,11 +29,13 @@
 		FA8FF76E189D66CB00750E51 /* backup.m in Sources */ = {isa = PBXBuildFile; fileRef = FA8FF76D189D66CB00750E51 /* backup.m */; };
 		FA8FF771189D66D800750E51 /* apply.m in Sources */ = {isa = PBXBuildFile; fileRef = FA8FF770189D66D800750E51 /* apply.m */; };
 		FA8FF774189D67B100750E51 /* create.m in Sources */ = {isa = PBXBuildFile; fileRef = FA8FF773189D67B100750E51 /* create.m */; };
+		4D5C1E2A2F00A10000000003 /* windows.m in Sources */ = {isa = PBXBuildFile; fileRef = 4D5C1E2A2F00A10000000002 /* windows.m */; };
 		FA9A48AB2353C6EF009CF05E /* NSBitmapImageRep+ColorSpace.m in Sources */ = {isa = PBXBuildFile; fileRef = FABA44D321D9D7D0009B10D9 /* NSBitmapImageRep+ColorSpace.m */; };
 		FAAEF8F4189EB32700145DF8 /* BTRClipView.m in Sources */ = {isa = PBXBuildFile; fileRef = FAAEF8F1189EB32700145DF8 /* BTRClipView.m */; };
 		FAAEF8F5189EB32700145DF8 /* BTRScrollView.m in Sources */ = {isa = PBXBuildFile; fileRef = FAAEF8F3189EB32700145DF8 /* BTRScrollView.m */; };
 		FAAEF8F7189EB34700145DF8 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FAAEF8F6189EB34700145DF8 /* QuartzCore.framework */; };
 		FAAEF94E189EFC9300145DF8 /* create.m in Sources */ = {isa = PBXBuildFile; fileRef = FA8FF773189D67B100750E51 /* create.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
+		4D5C1E2A2F00A10000000004 /* windows.m in Sources */ = {isa = PBXBuildFile; fileRef = 4D5C1E2A2F00A10000000002 /* windows.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 		FAAEF94F189EFC9600145DF8 /* backup.m in Sources */ = {isa = PBXBuildFile; fileRef = FA8FF76D189D66CB00750E51 /* backup.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 		FAAEF950189EFC9800145DF8 /* apply.m in Sources */ = {isa = PBXBuildFile; fileRef = FA8FF770189D66D800750E51 /* apply.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 		FAAEF951189F0CC300145DF8 /* restore.m in Sources */ = {isa = PBXBuildFile; fileRef = FA8FF76A189D664400750E51 /* restore.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
@@ -173,6 +175,8 @@
 		FA8FF770189D66D800750E51 /* apply.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = apply.m; sourceTree = "<group>"; };
 		FA8FF772189D67AA00750E51 /* create.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = create.h; sourceTree = "<group>"; };
 		FA8FF773189D67B100750E51 /* create.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = create.m; sourceTree = "<group>"; };
+		4D5C1E2A2F00A10000000001 /* windows.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = windows.h; sourceTree = "<group>"; };
+		4D5C1E2A2F00A10000000002 /* windows.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = windows.m; sourceTree = "<group>"; };
 		FAAEF8F0189EB32700145DF8 /* BTRClipView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BTRClipView.h; sourceTree = "<group>"; };
 		FAAEF8F1189EB32700145DF8 /* BTRClipView.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = BTRClipView.m; sourceTree = "<group>"; };
 		FAAEF8F2189EB32700145DF8 /* BTRScrollView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BTRScrollView.h; sourceTree = "<group>"; };
@@ -457,6 +461,8 @@
 				FA8FF770189D66D800750E51 /* apply.m */,
 				FA8FF772189D67AA00750E51 /* create.h */,
 				FA8FF773189D67B100750E51 /* create.m */,
+				4D5C1E2A2F00A10000000001 /* windows.h */,
+				4D5C1E2A2F00A10000000002 /* windows.m */,
 				FA359850189E035200288163 /* listen.h */,
 				FA359851189E035900288163 /* listen.m */,
 				FAAEF955189F4ECC00145DF8 /* scale.h */,
@@ -783,6 +789,7 @@
 				FAEE652F18A047E8003AA182 /* MCLibraryController.m in Sources */,
 				FAEE653118A047E8003AA182 /* MCLibraryWindowController.m in Sources */,
 				FAAEF94E189EFC9300145DF8 /* create.m in Sources */,
+				4D5C1E2A2F00A10000000004 /* windows.m in Sources */,
 				FAEE652C18A047E8003AA182 /* MCEditDetailController.m in Sources */,
 				FAAEF94F189EFC9600145DF8 /* backup.m in Sources */,
 				FA57339724954AB000103FCF /* RBLClipView.m in Sources */,
@@ -827,6 +834,7 @@
 				FAC69FDD189D636700BC829D /* MCDefs.m in Sources */,
 				FAC69FD4189D609B00BC829D /* GBCommandLineParser.m in Sources */,
 				FA8FF774189D67B100750E51 /* create.m in Sources */,
+				4D5C1E2A2F00A10000000003 /* windows.m in Sources */,
 				FABA44D421D9D7D0009B10D9 /* NSBitmapImageRep+ColorSpace.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

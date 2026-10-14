@@ -7,12 +7,21 @@
 //
 
 #import "create.h"
+#import "windows.h"
 #import "NSCursor_Private.h"
 #import "NSBitmapImageRep+ColorSpace.h"
 
 NSError *createCape(NSString *input, NSString *output, BOOL convert) {
     NSDictionary *cape;
-    if (convert)
+    // MightyMouse capes are single files, so any folder is taken for a Windows theme
+    BOOL directory = NO;
+    [NSFileManager.defaultManager fileExistsAtPath:input isDirectory:&directory];
+    if (convert && (directory || MCIsWindowsCursorPath(input))) {
+        NSError *error = nil;
+        cape = createCapeFromWindowsCursors(@[ input ], nil, &error);
+        if (!cape)
+            return error;
+    } else if (convert)
         cape = createCapeFromMightyMouse([NSDictionary dictionaryWithContentsOfFile:input], nil);
     else
         cape = createCapeFromDirectory(input);

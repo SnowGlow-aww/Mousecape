@@ -139,6 +139,7 @@ const char MCLibraryNameContext;
 
     self.tableView.doubleAction = @selector(doubleClick:);
     self.tableView.target       = self;
+    [self.tableView registerForDraggedTypes:@[ NSPasteboardTypeFileURL ]];
 
     // Rounded rows over the window background, which scrolls under the toolbar
     self.tableView.style = NSTableViewStyleInset;
@@ -280,6 +281,15 @@ const char MCLibraryNameContext;
     return self.editWindowController.cursorLibrary;
 }
 
+- (void)importURLs:(NSArray<NSURL *> *)urls {
+    MCCursorLibrary *last = [self.libraryController importURLs:urls].lastObject;
+    NSUInteger row = last ? [self.capes indexOfObject:last] : NSNotFound;
+    if (row == NSNotFound)
+        return;
+    [self.tableView selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
+    [self.tableView scrollRowToVisible:row];
+}
+
 - (void)editCape:(MCCursorLibrary *)library {
     if (!library)
         return;
@@ -319,6 +329,34 @@ const char MCLibraryNameContext;
 
 - (CGFloat)tableView:(NSTableView *)tableView heightOfRow:(NSInteger)row {
     return MCCapeCellView.rowHeight;
+}
+
+#pragma mark - Dropping capes and Windows cursors
+
+- (NSArray<NSURL *> *)importableURLsFromDrag:(id <NSDraggingInfo>)info {
+    NSArray *urls = [info.draggingPasteboard readObjectsForClasses:@[ NSURL.class ] options:@{ NSPasteboardURLReadingFileURLsOnlyKey: @YES }];
+    return [urls filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSURL *url, NSDictionary *bindings) {
+        return [MCLibraryController canImportURL:url];
+    }]];
+}
+
+- (NSDragOperation)tableView:(NSTableView *)tableView validateDrop:(id <NSDraggingInfo>)info proposedRow:(NSInteger)row proposedDropOperation:(NSTableViewDropOperation)dropOperation {
+    if (![self importableURLsFromDrag:info].count)
+        return NSDragOperationNone;
+    // The library sorts itself, so the drop goes to the whole list rather than between rows
+    [tableView setDropRow:-1 dropOperation:NSTableViewDropOn];
+    return NSDragOperationCopy;
+}
+
+- (BOOL)tableView:(NSTableView *)tableView acceptDrop:(id <NSDraggingInfo>)info row:(NSInteger)row dropOperation:(NSTableViewDropOperation)dropOperation {
+    NSArray *urls = [self importableURLsFromDrag:info];
+    if (!urls.count)
+        return NO;
+    // After the drag ends, so an error alert doesn't hold up the Finder
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self importURLs:urls];
+    });
+    return YES;
 }
 
 //- (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {

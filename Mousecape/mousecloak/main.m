@@ -54,8 +54,8 @@ int main(int argc, char * argv[]) {
          "\t\t    └── 3.png\n"
                           flags:GBValueRequired];
         [options registerOption:'d' long:@"dump" description:@"Dumps the currently applied cursors to a file." flags:GBValueRequired];
-        [options registerSeparator:@(BOLD "CONVERTING MIGHTYMOUSE TO CAPE" RESET)];
-        [options registerOption:'x' long:@"convert" description:@"Convert a .MightyMouse file to cape. Default output is to a new file of the same name" flags:GBValueRequired];
+        [options registerSeparator:@(BOLD "CONVERTING TO CAPE" RESET)];
+        [options registerOption:'x' long:@"convert" description:@"Convert a .MightyMouse file, or a Windows cursor theme (a folder of .ani/.cur files, its install.inf, or one cursor file), to a cape. Default output is a .cape of the same name next to it" flags:GBValueRequired];
         [options registerSeparator:@(BOLD "MISCELLANEOUS" RESET)];
         [options registerOption:'e' long:@"export" description:@"Export a cape to a directory" flags:GBValueRequired];
         [options registerOption:'?' long:@"help" description:@"Display this help and exit" flags:GBValueNone];
@@ -140,11 +140,16 @@ int main(int argc, char * argv[]) {
         } else if (create || convert) {
             NSError *error  = nil;
             NSString *input = create ? [settings objectForKey:@"create"] : [settings objectForKey:@"convert"];
-            NSString *output = [settings isKeyPresentAtThisLevel:@"output"] ? [settings objectForKey:@"output"] : input.stringByDeletingLastPathComponent;
+            // By default a .cape named after the input, next to it; an .inf is named for its theme's folder
+            NSString *named = [input.pathExtension.lowercaseString isEqualToString:@"inf"] ? input.stringByDeletingLastPathComponent : input;
+            NSString *output = [settings isKeyPresentAtThisLevel:@"output"] ? [settings objectForKey:@"output"] :
+                [named.stringByStandardizingPath.stringByDeletingPathExtension stringByAppendingPathExtension:@"cape"];
             
             error = createCape(input, output, convert);
             if (error) {
                 MMLog(BOLD RED "%s" RESET, error.localizedDescription.UTF8String);
+                if (error.localizedFailureReason)
+                    MMLog("%s", error.localizedFailureReason.UTF8String);
             } else {
                 MMLog(BOLD GREEN "Cape successfully written to %s" RESET, output.UTF8String);
             }

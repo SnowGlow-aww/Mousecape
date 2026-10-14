@@ -26,6 +26,9 @@
 #define WHITE   "\033[37m"      /* White */
 #define BOLD    "\033[1m"
 
+// The WindowServer refuses to register animations with more frames than this
+#define MCMaxFrameCount 24
+
 extern NSString *defaultCursors[];
 extern NSString *cursorAliases[][2];
 extern NSString *MCErrorDomain;

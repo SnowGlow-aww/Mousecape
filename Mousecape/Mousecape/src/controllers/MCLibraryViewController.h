@@ -21,6 +21,8 @@
 @property (readonly) BOOL clickedDefault;
 
 - (void)editCape:(MCCursorLibrary *)library;
+// Imports capes and Windows cursor themes, then selects the last one added
+- (void)importURLs:(NSArray<NSURL *> *)urls;
 @end
 
 @interface MCLibraryController (Properties)

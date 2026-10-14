@@ -19,6 +19,12 @@
 - (void)importCapeAtURL:(NSURL *)url;
 - (void)importCape:(MCCursorLibrary *)cape;
 
+// Capes, and Windows cursor themes: a folder of .ani/.cur files, its install.inf or the files themselves
++ (BOOL)canImportURL:(NSURL *)url;
+// Copies capes into the library and converts Windows themes, telling the user about anything that
+// couldn't be imported. Returns the capes added.
+- (NSArray<MCCursorLibrary *> *)importURLs:(NSArray<NSURL *> *)urls;
+
 - (void)addCape:(MCCursorLibrary *)cape;
 - (void)removeCape:(MCCursorLibrary *)cape;
 

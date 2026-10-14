@@ -11,6 +11,7 @@
 #import "apply.h"
 #import "restore.h"
 #import "create.h"
+#import "windows.h"
 
 @interface MCLibraryController ()
 @property (nonatomic, readwrite, strong) NSUndoManager *undoManager;
@@ -67,6 +68,64 @@
 
 - (void)importCapeAtURL:(NSURL *)url {
     [self importCape:[MCCursorLibrary cursorLibraryWithContentsOfURL:url]];
+}
+
++ (BOOL)canImportURL:(NSURL *)url {
+    return [url.pathExtension.lowercaseString isEqualToString:@"cape"] || MCIsWindowsCursorPath(url.path);
+}
+
+- (NSArray<MCCursorLibrary *> *)importURLs:(NSArray<NSURL *> *)urls {
+    NSMutableArray *imported = [NSMutableArray array];
+    NSMutableArray *failures = [NSMutableArray array];
+    NSMutableArray<NSArray *> *themes = [NSMutableArray array];
+    // Loose cursor files from one folder make one cape, like the theme they came from
+    NSMutableDictionary<NSString *, NSMutableArray *> *looseFiles = [NSMutableDictionary dictionary];
+
+    for (NSURL *url in urls) {
+        NSString *path = url.path, *extension = path.pathExtension.lowercaseString;
+        if ([extension isEqualToString:@"cape"]) {
+            MCCursorLibrary *cape = [MCCursorLibrary cursorLibraryWithContentsOfURL:url];
+            if (cape) {
+                [self importCape:cape];
+                [imported addObject:cape];
+            } else {
+                [failures addObject:path.lastPathComponent];
+            }
+        } else if ([extension isEqualToString:@"ani"] || [extension isEqualToString:@"cur"]) {
+            NSString *folder = path.stringByDeletingLastPathComponent;
+            if (!looseFiles[folder])
+                looseFiles[folder] = [NSMutableArray array];
+            [looseFiles[folder] addObject:path];
+        } else if (MCIsWindowsCursorPath(path)) {
+            [themes addObject:@[ path ]];
+        } else {
+            [failures addObject:path.lastPathComponent];
+        }
+    }
+    [themes addObjectsFromArray:looseFiles.allValues];
+
+    for (NSArray *paths in themes) {
+        NSDictionary *dictionary = createCapeFromWindowsCursors(paths, nil, NULL);
+        MCCursorLibrary *cape = dictionary ? [MCCursorLibrary cursorLibraryWithDictionary:dictionary] : nil;
+        if (cape) {
+            [self importCape:cape];
+            [imported addObject:cape];
+        } else {
+            [failures addObject:[paths.firstObject lastPathComponent]];
+        }
+    }
+
+    if (failures.count) {
+        NSAlert *alert = [[NSAlert alloc] init];
+        NSMutableArray *quoted = [NSMutableArray array];
+        for (NSString *name in failures)
+            [quoted addObject:[NSString stringWithFormat:NSLocalizedString(@"“%@”", @"A file name quoted in a sentence"), name]];
+        alert.messageText = [NSString stringWithFormat:NSLocalizedString(@"Couldn’t import %@", @"Import failure title, followed by the quoted names"),
+                             [NSListFormatter localizedStringByJoiningStrings:quoted]];
+        alert.informativeText = NSLocalizedString(@"Mousecape can import capes and Windows cursor themes: a folder of .ani and .cur files, its install.inf, or the cursor files themselves.", @"Import failure explanation");
+        [alert runModal];
+    }
+    return imported;
 }
 
 - (void)importCape:(MCCursorLibrary *)lib {

@@ -30,6 +30,25 @@ A pack of cursors in Mousecape is called a cape, each cape contains a multiple s
 
 There is an example cape file included in this Git Repo located [here for download](https://github.com/alexzielenski/Mousecape/blob/master/Mousecape/com.maxrudberg.svanslosbluehazard.cape). It is a remake of [Max Rudberg's](http://maxrudberg.com/) loved Svanslös cursors generously crafted by Max for us to use. Simply double click the cape file with Mousecape on your system and it will be imported into your library.
 
+### Windows cursors
+
+Mousecape can also turn a Windows cursor theme into a cape. Choose **Import** and pick the theme's folder, its `install.inf`, or the `.ani` and `.cur` files themselves, or drop any of those on the library window. The `install.inf` says which file is which pointer; without one, Mousecape goes by the file names Windows uses in English, Chinese and Japanese (Normal Select, 正常选择, 通常の選択…).
+
+| Windows | macOS |
+| --- | --- |
+| Normal Select | Arrow |
+| Text Select | I-beam |
+| Busy | Wait (spinning) |
+| Working in Background | Arrow with spinner |
+| Link Select | Pointing hand |
+| Help Select | Help |
+| Unavailable | Forbidden |
+| Precision Select | Crosshairs |
+| Move | Move |
+| Vertical, Horizontal and Diagonal Resize | The window and split view resize cursors |
+
+Handwriting, Alternate, Location and Person Select have no macOS counterpart and are left out, and the cursors only macOS has, like the open hand or the copy arrow, stay as they are. Cursors keep the size Windows shows them at, 32 points, with 1x and 2x images: whole-number scaling keeps pixel art sharp, and anything else is resampled smoothly. Pixels that would invert the screen on Windows, which macOS cursors can't do, turn black with a white edge. From the command line, `mousecloak --convert <theme folder>` writes the cape next to it.
+
 ## How can I create my own cape?
 
 You can create a new cape document in the Mousecape app by hitting &#8984;N (Command-N) and editing it with &#8984;E. Click the "+" button to add cursors to customize and symply drag your images into the fields provided.

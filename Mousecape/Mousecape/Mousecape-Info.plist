@@ -22,6 +22,19 @@
 			<key>LSTypeIsPackage</key>
 			<integer>0</integer>
 		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Windows Cursor</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.microsoft.windows-cursor</string>
+				<string>com.microsoft.windows-animated-cursor</string>
+			</array>
+		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
 	<string>${EXECUTABLE_NAME}</string>
@@ -70,6 +83,43 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>cape</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Windows Cursor</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.microsoft.windows-cursor</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>cur</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Windows Animated Cursor</string>
+			<key>UTTypeIdentifier</key>
+			<string>com.microsoft.windows-animated-cursor</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>ani</string>
 				</array>
 			</dict>
 		</dict>

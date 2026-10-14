@@ -44,13 +44,17 @@
     return YES;
 }
 
-- (BOOL)application:(NSApplication *)sender openFile:(NSString *)filename {
-    BOOL open = [filename.pathExtension.lowercaseString isEqualToString:@"cape"];
-    NSURL *url = [NSURL fileURLWithPath:filename];
-    if (open) {
-        [self.libraryWindowController.libraryViewController.libraryController importCapeAtURL:url];
+// Capes and Windows cursors opened from the Finder; cursor files opened together make one cape
+- (void)application:(NSApplication *)sender openFiles:(NSArray<NSString *> *)filenames {
+    NSMutableArray *urls = [NSMutableArray array];
+    for (NSString *filename in filenames) {
+        NSURL *url = [NSURL fileURLWithPath:filename];
+        if ([MCLibraryController canImportURL:url])
+            [urls addObject:url];
     }
-    return open;
+    if (urls.count)
+        [self.libraryWindowController.libraryViewController importURLs:urls];
+    [sender replyToOpenOrPrint:urls.count ? NSApplicationDelegateReplySuccess : NSApplicationDelegateReplyFailure];
 }
 
 - (void)configureHelperToolMenuItem {
@@ -156,12 +160,14 @@
 
 - (IBAction)openDocument:(id)sender {
     NSOpenPanel *panel = [NSOpenPanel openPanel];
-    panel.allowedFileTypes  = @[ @"cape" ];
+    panel.allowedFileTypes  = @[ @"cape", @"ani", @"cur", @"inf" ];
+    panel.canChooseDirectories    = YES;
+    panel.allowsMultipleSelection = YES;
     panel.title             = NSLocalizedString(@"Import", "Mousecape Import Title");
-    panel.message           = NSLocalizedString(@"Choose a Mousecape to import", "Mousecape Import useless description");
+    panel.message           = NSLocalizedString(@"Choose capes, or a Windows cursor theme: its folder or its .ani and .cur files", "Mousecape Import description");
     panel.prompt            = NSLocalizedString(@"Import", "Mousecape Import Prompt");
     if ([panel runModal] == NSFileHandlingPanelOKButton) {
-        [self.libraryWindowController.libraryViewController.libraryController importCapeAtURL:panel.URL];
+        [self.libraryWindowController.libraryViewController importURLs:panel.URLs];
     }
 }
 

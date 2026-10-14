@@ -12,9 +12,6 @@
 #import "MCPrefs.h"
 #import "NSBitmapImageRep+ColorSpace.h"
 
-// The WindowServer refuses to register animations with more frames than this
-#define MCMaxFrameCount 24
-
 // Copies every step-th frame out of a vertical strip of frameCount frames
 static CGImageRef createImageKeepingFrames(CGImageRef image, NSUInteger frameCount, NSUInteger step, NSUInteger keptCount) {
     size_t width = CGImageGetWidth(image);
