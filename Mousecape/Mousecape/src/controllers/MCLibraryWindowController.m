@@ -100,13 +100,16 @@ static NSToolbarItemIdentifier const MCToolbarResetIdentifier  = @"MCToolbarRese
     return item;
 }
 
-// Actions on a cape need one to act on
+// Actions on a cape need one to act on; the default row can only be applied
 - (BOOL)validateUserInterfaceItem:(id <NSValidatedUserInterfaceItem>)item {
     SEL action = item.action;
+    BOOL clicked = item.tag == -1;
+    if (action == @selector(applyCapeAction:) && (clicked ? self.libraryViewController.clickedDefault : self.libraryViewController.selectedDefault))
+        return YES;
     if (action == @selector(applyCapeAction:) || action == @selector(editCapeAction:) ||
         action == @selector(removeCapeAction:) || action == @selector(duplicateCapeAction:) ||
         action == @selector(showCapeAction:)) {
-        return (item.tag == -1 ? self.libraryViewController.clickedCape : self.libraryViewController.selectedCape) != nil;
+        return (clicked ? self.libraryViewController.clickedCape : self.libraryViewController.selectedCape) != nil;
     }
     return YES;
 }
@@ -126,11 +129,19 @@ static NSToolbarItemIdentifier const MCToolbarResetIdentifier  = @"MCToolbarRese
 #pragma mark - Menu Actions
 
 - (IBAction)applyCapeAction:(NSMenuItem *)sender {
+    // Applying the default row puts the system cursors back
+    if (sender.tag == -1 ? self.libraryViewController.clickedDefault : self.libraryViewController.selectedDefault) {
+        [self.libraryViewController.libraryController restoreCape];
+        return;
+    }
+
     MCCursorLibrary *cape = nil;
     if (sender.tag == -1)
         cape = self.libraryViewController.clickedCape;
     else
         cape = self.libraryViewController.selectedCape;
+    if (!cape)
+        return;
     
     [self.libraryViewController.libraryController applyCape:cape];
 }
@@ -141,6 +152,8 @@ static NSToolbarItemIdentifier const MCToolbarResetIdentifier  = @"MCToolbarRese
         cape = self.libraryViewController.clickedCape;
     else
         cape = self.libraryViewController.selectedCape;
+    if (!cape)
+        return;
     
     [self.libraryViewController editCape:cape];
 }
@@ -151,6 +164,8 @@ static NSToolbarItemIdentifier const MCToolbarResetIdentifier  = @"MCToolbarRese
         cape = self.libraryViewController.clickedCape;
     else
         cape = self.libraryViewController.selectedCape;
+    if (!cape)
+        return;
     
     if (cape != self.libraryViewController.editingCape) {
         [self.libraryViewController.libraryController removeCape:cape];
@@ -166,6 +181,8 @@ static NSToolbarItemIdentifier const MCToolbarResetIdentifier  = @"MCToolbarRese
         cape = self.libraryViewController.clickedCape;
     else
         cape = self.libraryViewController.selectedCape;
+    if (!cape)
+        return;
     
     [self.libraryViewController.libraryController importCape:cape.copy];
 }
@@ -180,6 +197,8 @@ static NSToolbarItemIdentifier const MCToolbarResetIdentifier  = @"MCToolbarRese
         cape = self.libraryViewController.clickedCape;
     else
         cape = self.libraryViewController.selectedCape;
+    if (!cape)
+        return;
     
     [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[ cape.fileURL ]];
 }

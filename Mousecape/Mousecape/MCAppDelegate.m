@@ -30,6 +30,7 @@
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
+    [self repairHelperTool];
     [self configureHelperToolMenuItem];
     [self.libraryWindowController showWindow:self];
     
@@ -62,6 +63,16 @@
     
     if (dict)
         CFRelease(dict);
+}
+
+// Builds signed ad hoc are known to the system only by their exact code, so after an update the
+// registered helper no longer matches this copy and fails to start. Registering it again fixes that.
+- (void)repairHelperTool {
+    NSDictionary *job = CFBridgingRelease(SMJobCopyDictionary(kSMDomainUserLaunchd, CFSTR("com.alexzielenski.mousecloakhelper")));
+    if (job && !job[@"PID"]) {
+        SMLoginItemSetEnabled(CFSTR("com.alexzielenski.mousecloakhelper"), false);
+        SMLoginItemSetEnabled(CFSTR("com.alexzielenski.mousecloakhelper"), true);
+    }
 }
 
 - (IBAction)toggleInstall:(NSMenuItem *)sender {

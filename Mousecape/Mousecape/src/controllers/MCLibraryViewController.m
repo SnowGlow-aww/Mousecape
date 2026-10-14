@@ -15,9 +15,65 @@
 const char MCLibraryCapesContext;
 const char MCLibraryNameContext;
 
+// One of the cursors macOS draws, in the shape the row's previews read
+@interface MCSystemCursorPreview : NSObject
+@property (copy) NSString *name;
+@property (strong) NSImage *imageWithAllReps;
+@property (assign) NSUInteger frameCount;
+@property (assign) CGFloat frameDuration;
+@end
+
+@implementation MCSystemCursorPreview
+@end
+
+// The first row of the library: what you get back by resetting
+@interface MCSystemDefaultCape : NSObject
+@property (readonly) NSString *name;
+@property (readonly) NSString *author;
+@property (readonly) BOOL hiDPI;
+@property (readonly) NSSet *cursors;
+@end
+
+@implementation MCSystemDefaultCape
+
+- (instancetype)init {
+    if ((self = [super init])) {
+        _name = NSLocalizedString(@"macOS Default", @"Library row for the system cursors");
+        _author = @"Apple";
+        _hiDPI = YES;
+
+        NSDictionary *cursors = @{
+            @"Arrow": NSCursor.arrowCursor, @"Copy": NSCursor.dragCopyCursor, @"Link": NSCursor.dragLinkCursor,
+            @"Forbidden": NSCursor.operationNotAllowedCursor, @"Contextual Menu": NSCursor.contextualMenuCursor,
+            @"IBeam": NSCursor.IBeamCursor, @"Pointing Hand": NSCursor.pointingHandCursor,
+            @"Open Hand": NSCursor.openHandCursor, @"Closed Hand": NSCursor.closedHandCursor,
+            @"Crosshair": NSCursor.crosshairCursor,
+        };
+        NSMutableSet *previews = [NSMutableSet set];
+        [cursors enumerateKeysAndObjectsUsingBlock:^(NSString *name, NSCursor *cursor, BOOL *stop) {
+            MCSystemCursorPreview *preview = [[MCSystemCursorPreview alloc] init];
+            preview.name = name;
+            // Drawn on demand at its point size; some system cursor images report a scale the
+            // preview's layer takes for 1x and show at double size
+            NSImage *source = cursor.image;
+            preview.imageWithAllReps = [NSImage imageWithSize:source.size flipped:NO drawingHandler:^BOOL(NSRect rect) {
+                [source drawInRect:rect];
+                return YES;
+            }];
+            preview.frameCount = 1;
+            preview.frameDuration = 1;
+            [previews addObject:preview];
+        }];
+        _cursors = previews;
+    }
+    return self;
+}
+
+@end
+
 @interface MCLibraryViewController ()
 @property (strong) MCEditWindowController *editWindowController;
-@property (strong) NSView *emptyView;
+@property (strong) MCSystemDefaultCape *systemDefault;
 @property (readwrite, strong) NSMutableOrderedSet *capes;
 @property (strong, readwrite) MCLibraryController *libraryController;
 - (void)setupEnvironment;
@@ -34,6 +90,10 @@ const char MCLibraryNameContext;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         sortComparator = ^NSComparisonResult(id obj1, id obj2) {
+            // The default row stays first
+            if ([obj1 isKindOfClass:[MCSystemDefaultCape class]] || [obj2 isKindOfClass:[MCSystemDefaultCape class]])
+                return obj1 == obj2 ? NSOrderedSame : [obj1 isKindOfClass:[MCSystemDefaultCape class]] ? NSOrderedAscending : NSOrderedDescending;
+
             NSComparisonResult result = [[obj1 valueForKey:@"name"] localizedCaseInsensitiveCompare:[obj2 valueForKey:@"name"]];
             if (result == NSOrderedSame)
                 result = [[obj1 valueForKey:@"author"] localizedCaseInsensitiveCompare:[obj2 valueForKey:@"author"]];
@@ -63,7 +123,8 @@ const char MCLibraryNameContext;
     [self.libraryController removeObserver:self forKeyPath:@"appliedCape"];
     
     for (MCCursorLibrary *library in self.capes) {
-        [library removeObserver:self forKeyPath:@"name" context:(void *)&MCLibraryNameContext];
+        if (library != (id)self.systemDefault)
+            [library removeObserver:self forKeyPath:@"name" context:(void *)&MCLibraryNameContext];
     }
     
 }
@@ -73,7 +134,7 @@ const char MCLibraryNameContext;
 }
 
 - (void)awakeFromNib {
-    if (self.emptyView)
+    if (self.tableView.style == NSTableViewStyleInset)
         return;
 
     self.tableView.doubleAction = @selector(doubleClick:);
@@ -88,28 +149,6 @@ const char MCLibraryNameContext;
     self.tableView.intercellSpacing = NSMakeSize(0, 6);
     self.tableView.rowSizeStyle = NSTableViewRowSizeStyleCustom;
     self.tableView.rowHeight = MCCapeCellView.rowHeight;
-
-    NSTextField *title = [NSTextField labelWithString:NSLocalizedString(@"No Capes", @"Library placeholder title")];
-    title.font = [NSFont systemFontOfSize:20 weight:NSFontWeightSemibold];
-    title.textColor = NSColor.secondaryLabelColor;
-    NSTextField *hint = [NSTextField labelWithString:NSLocalizedString(@"Create one with the + button or import a .cape file.", @"Library placeholder hint")];
-    hint.textColor = NSColor.tertiaryLabelColor;
-
-    NSStackView *empty = [NSStackView stackViewWithViews:@[ title, hint ]];
-    empty.orientation = NSUserInterfaceLayoutOrientationVertical;
-    empty.spacing = 6;
-    empty.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:empty];
-    [NSLayoutConstraint activateConstraints:@[
-        [empty.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
-        [empty.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
-    ]];
-    self.emptyView = empty;
-    [self updateEmptyView];
-}
-
-- (void)updateEmptyView {
-    self.emptyView.hidden = self.capes.count > 0;
 }
 
 - (void)setupEnvironment {
@@ -124,7 +163,7 @@ const char MCLibraryNameContext;
     if ([keyPath isEqualToString:NSStringFromSelector(@selector(appliedCape))]) {
         for (NSUInteger x = 0; x < self.tableView.numberOfRows; x++) {
             MCCapeCellView *cv = [self.tableView viewAtColumn:0 row:x makeIfNecessary:NO];
-            cv.applied = cv.objectValue == self.libraryController.appliedCape;
+            cv.applied = [self isApplied:cv.objectValue];
         }
         
     } else if (context == &MCLibraryCapesContext) {
@@ -134,7 +173,9 @@ const char MCLibraryNameContext;
         if (kind ==  NSKeyValueChangeInsertion || kind == NSKeyValueChangeSetting) {
             
             if (kind == NSKeyValueChangeSetting) {
-                self.capes = [NSMutableOrderedSet orderedSet];
+                if (!self.systemDefault)
+                    self.systemDefault = [[MCSystemDefaultCape alloc] init];
+                self.capes = [NSMutableOrderedSet orderedSetWithObject:self.systemDefault];
             }
                 
             for (MCCursorLibrary *lib in change[NSKeyValueChangeNewKey]) {
@@ -167,7 +208,6 @@ const char MCLibraryNameContext;
         }
         
         [self.tableView endUpdates];
-        [self updateEmptyView];
 
     } else if (context == &MCLibraryNameContext) {
         // Reoder it
@@ -185,6 +225,12 @@ const char MCLibraryNameContext;
 }
 
 - (void)doubleClick:(NSTableView *)sender {
+    if (self.clickedDefault) {
+        if ([[NSUserDefaults standardUserDefaults] integerForKey:MCPreferencesDoubleActionKey] == 0)
+            [self.libraryController restoreCape];
+        return;
+    }
+
     MCCursorLibrary *library = [self capeAtRow:sender.clickedRow];
     if (!library)
         return;
@@ -201,9 +247,25 @@ const char MCLibraryNameContext;
     return [NSSet setWithObject:@"editWindowController.cursorLibrary"];
 }
 
-// Straight from the data; asking the table for a row's view throws when no row is clicked
+// Straight from the data; asking the table for a row's view throws when no row is clicked.
+// The default row has no cape.
 - (MCCursorLibrary *)capeAtRow:(NSInteger)row {
-    return row >= 0 && row < (NSInteger)self.capes.count ? self.capes[row] : nil;
+    id object = row >= 0 && row < (NSInteger)self.capes.count ? self.capes[row] : nil;
+    return [object isKindOfClass:[MCCursorLibrary class]] ? object : nil;
+}
+
+- (BOOL)selectedDefault {
+    return self.tableView.selectedRow == 0 && self.systemDefault;
+}
+
+- (BOOL)clickedDefault {
+    return self.tableView.clickedRow == 0 && self.systemDefault;
+}
+
+- (BOOL)isApplied:(id)object {
+    if (object == self.systemDefault)
+        return self.libraryController.appliedCape == nil;
+    return object == self.libraryController.appliedCape;
 }
 
 - (MCCursorLibrary *)selectedCape {
@@ -246,7 +308,7 @@ const char MCLibraryNameContext;
     MCCapeCellView *cellView = [tableView makeViewWithIdentifier:MCCapeCellIdentifier owner:self];
     if (!cellView)
         cellView = [[MCCapeCellView alloc] initWithFrame:NSMakeRect(0, 0, NSWidth(tableView.bounds), tableView.rowHeight)];
-    cellView.applied = [self.capes objectAtIndex:row] == self.libraryController.appliedCape;
+    cellView.applied = [self isApplied:[self.capes objectAtIndex:row]];
     return cellView;
 }
 

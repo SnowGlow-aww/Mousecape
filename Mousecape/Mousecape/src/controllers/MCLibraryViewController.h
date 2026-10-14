@@ -16,6 +16,9 @@
 @property (weak) MCCursorLibrary *editingCape;
 @property (weak) MCCursorLibrary *selectedCape;
 @property (weak) MCCursorLibrary *clickedCape;
+// The first row stands for the cursors macOS has when no cape is applied
+@property (readonly) BOOL selectedDefault;
+@property (readonly) BOOL clickedDefault;
 
 - (void)editCape:(MCCursorLibrary *)library;
 @end
