@@ -174,11 +174,38 @@ BOOL applyCapeForIdentifier(NSDictionary *cursor, NSString *identifier, BOOL res
     return images && registerCursor(cursor, images, mirror, @[ identifier ]);
 }
 
+// Checked before anything is reset, so a cape that can't be applied leaves the current cursors
+// alone. Applying one with an empty cursor used to reset everything and then stop partway.
+static BOOL capeCanBeApplied(NSDictionary *cursors) {
+    if (![cursors isKindOfClass:[NSDictionary class]] || cursors.count == 0) {
+        MMLog(BOLD RED "This cape has no cursors" RESET);
+        return NO;
+    }
+
+    for (NSString *key in cursors) {
+        NSDictionary *cursor = cursors[key];
+        NSArray *reps = [cursor isKindOfClass:[NSDictionary class]] ? cursor[MCCursorDictionaryRepresentationsKey] : nil;
+        if (![reps isKindOfClass:[NSArray class]] || reps.count == 0 ||
+            [cursor[MCCursorDictionaryFrameCountKey] integerValue] < 1 ||
+            [cursor[MCCursorDictionaryPointsWideKey] doubleValue] <= 0 ||
+            [cursor[MCCursorDictionaryPointsHighKey] doubleValue] <= 0) {
+            MMLog(BOLD RED "Cursor %s has no images or no size" RESET, key.UTF8String);
+            return NO;
+        }
+    }
+    return YES;
+}
+
 BOOL applyCape(NSDictionary *dictionary) {
     @autoreleasepool {
         NSDictionary *cursors = dictionary[MCCursorDictionaryCursorsKey];
         NSString *name = dictionary[MCCursorDictionaryCapeNameKey];
         NSNumber *version = dictionary[MCCursorDictionaryCapeVersionKey];
+        
+        if (!capeCanBeApplied(cursors)) {
+            MMLog(BOLD RED "Not applying %s; the current cursors are unchanged." RESET, name.UTF8String);
+            return NO;
+        }
         
         resetAllCursors();
         backupAllCursors();
@@ -225,6 +252,8 @@ BOOL applyCape(NSDictionary *dictionary) {
                 BOOL success = images != (id)[NSNull null] && registerCursor(cursors[key], images, shouldMirrorCursor(key, NO), identifiers);
                 if (!success) {
                     MMLog(BOLD RED "Failed to hook identifier %s for some unknown reason. Bailing out..." RESET, key.UTF8String);
+                    // Go back to the default cursors rather than leave half a cape applied
+                    resetAllCursors();
                     return NO;
                 }
             }

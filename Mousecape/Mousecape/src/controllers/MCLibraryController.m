@@ -138,7 +138,20 @@
 - (void)applyCape:(MCCursorLibrary *)cape {
     if (applyCapeAtPath(cape.fileURL.path)) {
         self.appliedCape = cape;
+        return;
     }
+
+    // A cape that fails its checks leaves the current one applied, but one that fails partway ends
+    // up reset to the defaults. Show whichever is now recorded as applied instead of the old one.
+    NSString *applied = [NSUserDefaults.standardUserDefaults stringForKey:MCPreferencesAppliedCursorKey];
+    self.appliedCape = applied ? [[self capesWithIdentifier:applied] anyObject] : nil;
+
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.messageText = [NSString stringWithFormat:NSLocalizedString(@"Couldn’t apply “%@”", @"Apply cape failure title"), cape.name];
+    alert.informativeText = self.appliedCape ?
+        NSLocalizedString(@"Some of its cursors have no images or can’t be read. Your current cursors weren’t changed.", @"Apply cape failure, current cape kept") :
+        NSLocalizedString(@"Some of its cursors have no images or can’t be read. The default cursors are in use.", @"Apply cape failure, cursors reset");
+    [alert runModal];
 }
 
 - (void)restoreCape {
