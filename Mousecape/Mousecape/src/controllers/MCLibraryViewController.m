@@ -17,6 +17,7 @@ const char MCLibraryNameContext;
 
 @interface MCLibraryViewController ()
 @property (strong) MCEditWindowController *editWindowController;
+@property (strong) NSView *emptyView;
 @property (readwrite, strong) NSMutableOrderedSet *capes;
 @property (strong, readwrite) MCLibraryController *libraryController;
 - (void)setupEnvironment;
@@ -72,8 +73,43 @@ const char MCLibraryNameContext;
 }
 
 - (void)awakeFromNib {
+    if (self.emptyView)
+        return;
+
     self.tableView.doubleAction = @selector(doubleClick:);
     self.tableView.target       = self;
+
+    // Rounded rows over the window background, which scrolls under the toolbar
+    self.tableView.style = NSTableViewStyleInset;
+    self.tableView.usesAlternatingRowBackgroundColors = NO;
+    self.tableView.backgroundColor = NSColor.clearColor;
+    self.tableView.enclosingScrollView.drawsBackground = NO;
+    self.tableView.headerView = nil;
+    self.tableView.intercellSpacing = NSMakeSize(0, 6);
+    self.tableView.rowSizeStyle = NSTableViewRowSizeStyleCustom;
+    self.tableView.rowHeight = MCCapeCellView.rowHeight;
+
+    NSTextField *title = [NSTextField labelWithString:NSLocalizedString(@"No Capes", @"Library placeholder title")];
+    title.font = [NSFont systemFontOfSize:20 weight:NSFontWeightSemibold];
+    title.textColor = NSColor.secondaryLabelColor;
+    NSTextField *hint = [NSTextField labelWithString:NSLocalizedString(@"Create one with the + button or import a .cape file.", @"Library placeholder hint")];
+    hint.textColor = NSColor.tertiaryLabelColor;
+
+    NSStackView *empty = [NSStackView stackViewWithViews:@[ title, hint ]];
+    empty.orientation = NSUserInterfaceLayoutOrientationVertical;
+    empty.spacing = 6;
+    empty.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:empty];
+    [NSLayoutConstraint activateConstraints:@[
+        [empty.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [empty.centerYAnchor constraintEqualToAnchor:self.view.centerYAnchor],
+    ]];
+    self.emptyView = empty;
+    [self updateEmptyView];
+}
+
+- (void)updateEmptyView {
+    self.emptyView.hidden = self.capes.count > 0;
 }
 
 - (void)setupEnvironment {
@@ -88,7 +124,7 @@ const char MCLibraryNameContext;
     if ([keyPath isEqualToString:NSStringFromSelector(@selector(appliedCape))]) {
         for (NSUInteger x = 0; x < self.tableView.numberOfRows; x++) {
             MCCapeCellView *cv = [self.tableView viewAtColumn:0 row:x makeIfNecessary:NO];
-            cv.appliedImageView.hidden = !(cv.objectValue == [self.libraryController appliedCape]);
+            cv.applied = cv.objectValue == self.libraryController.appliedCape;
         }
         
     } else if (context == &MCLibraryCapesContext) {
@@ -131,6 +167,7 @@ const char MCLibraryNameContext;
         }
         
         [self.tableView endUpdates];
+        [self updateEmptyView];
 
     } else if (context == &MCLibraryNameContext) {
         // Reoder it
@@ -148,8 +185,9 @@ const char MCLibraryNameContext;
 }
 
 - (void)doubleClick:(NSTableView *)sender {
-    NSUInteger row = sender.clickedRow;
-    MCCursorLibrary *library = [[sender viewAtColumn:0 row:row makeIfNecessary:NO] objectValue];
+    MCCursorLibrary *library = [self capeAtRow:sender.clickedRow];
+    if (!library)
+        return;
     if ([[NSUserDefaults standardUserDefaults] integerForKey:MCPreferencesDoubleActionKey] == 0)
         [self.libraryController applyCape:library];
     else {
@@ -163,12 +201,17 @@ const char MCLibraryNameContext;
     return [NSSet setWithObject:@"editWindowController.cursorLibrary"];
 }
 
+// Straight from the data; asking the table for a row's view throws when no row is clicked
+- (MCCursorLibrary *)capeAtRow:(NSInteger)row {
+    return row >= 0 && row < (NSInteger)self.capes.count ? self.capes[row] : nil;
+}
+
 - (MCCursorLibrary *)selectedCape {
-    return [[self.tableView viewAtColumn:0 row:self.tableView.selectedRow makeIfNecessary:NO] objectValue];
+    return [self capeAtRow:self.tableView.selectedRow];
 }
 
 - (MCCursorLibrary *)clickedCape {
-    return [[self.tableView viewAtColumn:0 row:self.tableView.clickedRow makeIfNecessary:NO] objectValue];
+    return [self capeAtRow:self.tableView.clickedRow];
 }
 
 - (MCCursorLibrary *)editingCape {
@@ -200,9 +243,20 @@ const char MCLibraryNameContext;
 #pragma mark - NSTableViewDelegate
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
-    MCCapeCellView *cellView = (MCCapeCellView *)[tableView makeViewWithIdentifier:tableColumn.identifier owner:self];
-    cellView.appliedImageView.hidden = !([self.capes objectAtIndex:row] == self.libraryController.appliedCape);
+    MCCapeCellView *cellView = [tableView makeViewWithIdentifier:MCCapeCellIdentifier owner:self];
+    if (!cellView)
+        cellView = [[MCCapeCellView alloc] initWithFrame:NSMakeRect(0, 0, NSWidth(tableView.bounds), tableView.rowHeight)];
+    cellView.applied = [self.capes objectAtIndex:row] == self.libraryController.appliedCape;
     return cellView;
+}
+
+// The toolbar's cape actions depend on the selection
+- (void)tableViewSelectionDidChange:(NSNotification *)notification {
+    [self.view.window.toolbar validateVisibleItems];
+}
+
+- (CGFloat)tableView:(NSTableView *)tableView heightOfRow:(NSInteger)row {
+    return MCCapeCellView.rowHeight;
 }
 
 //- (NSTableRowView *)tableView:(NSTableView *)tableView rowViewForRow:(NSInteger)row {

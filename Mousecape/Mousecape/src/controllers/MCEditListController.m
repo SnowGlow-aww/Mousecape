@@ -12,6 +12,15 @@
 const char MCEditCursorsContext;
 const char MCCursorNameContext;
 
+static NSUserInterfaceItemIdentifier const MCEditCapeCellIdentifier   = @"MCEditCapeCell";
+static NSUserInterfaceItemIdentifier const MCEditCursorCellIdentifier = @"MCEditCursorCell";
+
+// The first frame of a cursor, scaled down to fit
+@interface MCCursorThumbnailView : NSView
+@property (nonatomic, strong) NSImage *image;
+@property (nonatomic, assign) NSUInteger frameCount;
+@end
+
 @interface MCEditListController ()
 @property (nonatomic, strong) NSMutableOrderedSet *cursors;
 + (NSComparator)sortComparator;
@@ -20,6 +29,15 @@ const char MCCursorNameContext;
 @end
 
 @implementation MCEditListController
+
+- (void)awakeFromNib {
+    [super awakeFromNib];
+
+    // A sidebar list; on macOS 26 and later it sits on Liquid Glass
+    self.tableView.style = NSTableViewStyleSourceList;
+    self.tableView.backgroundColor = NSColor.clearColor;
+    self.tableView.enclosingScrollView.drawsBackground = NO;
+}
 
 - (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil {
     self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
@@ -167,23 +185,54 @@ const char MCCursorNameContext;
         self.selectedObject = [self.cursors objectAtIndex:selectedRow - 1];
 }
 
-- (BOOL)tableView:(NSTableView *)tableView isGroupRow:(NSInteger)row {
-    return row == 0;
-}
-
 - (CGFloat)tableView:(NSTableView *)tableView heightOfRow:(NSInteger)row {
-    if (row == 0)
-        return 32.0;
-    return 22.0;
+    return 28.0;
 }
 
+// The first row edits the cape itself; the others are its cursors, each with a thumbnail
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)tableColumn row:(NSInteger)row {
-    NSView *view;
-    if (row == 0)
-        view = [tableView makeViewWithIdentifier:@"MCCursorLibrary" owner:self];
-    else
-        view = [tableView makeViewWithIdentifier:@"MCCursor" owner:self];
-    return view;
+    NSUserInterfaceItemIdentifier identifier = row == 0 ? MCEditCapeCellIdentifier : MCEditCursorCellIdentifier;
+    NSTableCellView *cell = [tableView makeViewWithIdentifier:identifier owner:self];
+    if (cell)
+        return cell;
+
+    cell = [[NSTableCellView alloc] init];
+    cell.identifier = identifier;
+
+    NSTextField *textField = [NSTextField labelWithString:@""];
+    textField.lineBreakMode = NSLineBreakByTruncatingTail;
+    [textField setContentCompressionResistancePriority:NSLayoutPriorityDefaultLow forOrientation:NSLayoutConstraintOrientationHorizontal];
+    [textField bind:NSValueBinding toObject:cell withKeyPath:@"objectValue.name" options:nil];
+    cell.textField = textField;
+
+    NSView *icon;
+    if (row == 0) {
+        NSImageView *imageView = [NSImageView imageViewWithImage:[NSImage imageWithSystemSymbolName:@"info.circle" accessibilityDescription:nil]];
+        imageView.symbolConfiguration = [NSImageSymbolConfiguration configurationWithPointSize:14 weight:NSFontWeightRegular];
+        cell.imageView = imageView;
+        textField.font = [NSFont systemFontOfSize:NSFont.systemFontSize weight:NSFontWeightSemibold];
+        icon = imageView;
+    } else {
+        MCCursorThumbnailView *thumbnail = [[MCCursorThumbnailView alloc] init];
+        [thumbnail bind:@"image" toObject:cell withKeyPath:@"objectValue.imageWithAllReps" options:nil];
+        [thumbnail bind:@"frameCount" toObject:cell withKeyPath:@"objectValue.frameCount" options:nil];
+        icon = thumbnail;
+    }
+
+    for (NSView *view in @[ icon, textField ]) {
+        view.translatesAutoresizingMaskIntoConstraints = NO;
+        [cell addSubview:view];
+    }
+    [NSLayoutConstraint activateConstraints:@[
+        [icon.leadingAnchor constraintEqualToAnchor:cell.leadingAnchor constant:2],
+        [icon.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
+        [icon.widthAnchor constraintEqualToConstant:20],
+        [icon.heightAnchor constraintEqualToConstant:20],
+        [textField.leadingAnchor constraintEqualToAnchor:icon.trailingAnchor constant:6],
+        [textField.trailingAnchor constraintLessThanOrEqualToAnchor:cell.trailingAnchor constant:-2],
+        [textField.centerYAnchor constraintEqualToAnchor:cell.centerYAnchor],
+    ]];
+    return cell;
 }
 
 #pragma mark - NSTableViewDataSource
@@ -196,6 +245,47 @@ const char MCCursorNameContext;
     if (row == 0)
         return self.cursorLibrary;
     return [self.cursors objectAtIndex: row - 1];
+}
+
+@end
+
+@implementation MCCursorThumbnailView
+
+- (void)setImage:(NSImage *)image {
+    _image = image;
+    self.needsDisplay = YES;
+}
+
+- (void)setFrameCount:(NSUInteger)frameCount {
+    _frameCount = frameCount;
+    self.needsDisplay = YES;
+}
+
+// Bindings pass nil for a cursor without images
+- (void)setNilValueForKey:(NSString *)key {
+    if ([key isEqualToString:@"frameCount"])
+        self.frameCount = 1;
+    else
+        [super setNilValueForKey:key];
+}
+
+- (void)drawRect:(NSRect)dirtyRect {
+    NSImage *image = self.image;
+    NSSize frame = NSMakeSize(image.size.width, image.size.height / MAX(self.frameCount, 1));
+    if (frame.width <= 0 || frame.height <= 0)
+        return;
+
+    CGFloat scale = MIN(1.0, MIN(NSWidth(self.bounds) / frame.width, NSHeight(self.bounds) / frame.height));
+    NSSize drawn = NSMakeSize(frame.width * scale, frame.height * scale);
+    NSRect destination = NSMakeRect(NSMidX(self.bounds) - drawn.width / 2, NSMidY(self.bounds) - drawn.height / 2, drawn.width, drawn.height);
+
+    // Frames are stacked from the top
+    [image drawInRect:[self backingAlignedRect:destination options:NSAlignAllEdgesNearest]
+             fromRect:NSMakeRect(0, image.size.height - frame.height, frame.width, frame.height)
+            operation:NSCompositingOperationSourceOver
+             fraction:1.0
+       respectFlipped:YES
+                hints:nil];
 }
 
 @end

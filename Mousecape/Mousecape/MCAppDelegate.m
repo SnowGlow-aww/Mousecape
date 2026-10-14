@@ -105,7 +105,8 @@
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSViewController *general = [[MCGeneralPreferencesController alloc] init];
-        _preferencesWindowController = [[MASPreferencesWindowController alloc] initWithViewControllers:@[ general ] title:NSLocalizedString(@"Preferences", "Preferences Window Title")];
+        _preferencesWindowController = [[MASPreferencesWindowController alloc] initWithViewControllers:@[ general ] title:NSLocalizedString(@"Settings", "Settings Window Title")];
+        _preferencesWindowController.window.toolbarStyle = NSWindowToolbarStylePreference;
     });
     
     return _preferencesWindowController;

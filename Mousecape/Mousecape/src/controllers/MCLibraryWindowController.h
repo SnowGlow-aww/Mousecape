@@ -11,7 +11,6 @@
 
 @interface MCLibraryWindowController : NSWindowController <NSWindowDelegate>
 @property (weak) IBOutlet MCLibraryViewController *libraryViewController;
-@property (weak) IBOutlet NSView *appliedAccessory;
 @property (weak) IBOutlet NSProgressIndicator *progressBar;
 @property (weak) IBOutlet NSTextField *progressField;
 @end

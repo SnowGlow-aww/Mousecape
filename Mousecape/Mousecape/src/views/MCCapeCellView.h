@@ -9,14 +9,11 @@
 #import <Cocoa/Cocoa.h>
 #import "MMAnimatingImageView.h"
 
+extern NSUserInterfaceItemIdentifier const MCCapeCellIdentifier;
+
+// One cape in the library: its name and author, badges for whether it is applied and whether it
+// has Retina images, and a strip previewing its cursors
 @interface MCCapeCellView : NSTableCellView
-@property IBOutlet NSTextField *titleField;
-@property IBOutlet NSTextField *subtitleField;
-@property IBOutlet NSImageView *appliedImageView;
-@property IBOutlet NSImageView *resolutionImageView;
-@property IBOutlet NSCollectionView *collectionView;
+@property (nonatomic, assign, getter=isApplied) BOOL applied;
++ (CGFloat)rowHeight;
 @end
-
-@interface MCHDValueTransformer : NSValueTransformer
-@end
-

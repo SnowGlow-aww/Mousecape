@@ -465,7 +465,7 @@
                 <textField verticalHuggingPriority="750" translatesAutoresizingMaskIntoConstraints="NO" id="VbK-WJ-M0L">
                     <rect key="frame" x="126" y="232" width="363" height="21"/>
                     <textFieldCell key="cell" scrollable="YES" lineBreakMode="clipping" selectable="YES" editable="YES" sendsActionOnEndEditing="YES" state="on" borderStyle="bezel" placeholderString="0.0" drawsBackground="YES" id="pqX-MB-QME">
-                        <numberFormatter key="formatter" formatterBehavior="custom10_4" positiveFormat="#.################" negativeFormat="#.################" usesGroupingSeparator="NO" paddingCharacter="*" groupingSize="0" minimumIntegerDigits="0" maximumIntegerDigits="42" maximumFractionDigits="16" decimalSeparator="." groupingSeparator="," currencyDecimalSeparator="." plusSign="+" minusSign="-" notANumberSymbol="NaN" perMillSymbol="‰" percentSymbol="%" exponentSymbol="E" positivePrefix="" positiveSuffix="" negativePrefix="-" negativeSuffix="" id="QTS-o7-aVO">
+                        <numberFormatter key="formatter" formatterBehavior="custom10_4" positiveFormat="0.####" negativeFormat="-0.####" usesGroupingSeparator="NO" paddingCharacter="*" groupingSize="0" minimumIntegerDigits="1" maximumIntegerDigits="42" maximumFractionDigits="4" decimalSeparator="." groupingSeparator="," currencyDecimalSeparator="." plusSign="+" minusSign="-" notANumberSymbol="NaN" perMillSymbol="‰" percentSymbol="%" exponentSymbol="E" positivePrefix="" positiveSuffix="" negativePrefix="-" negativeSuffix="" id="QTS-o7-aVO">
                             <real key="minimum" value="0.0"/>
                         </numberFormatter>
                         <font key="font" metaFont="system"/>

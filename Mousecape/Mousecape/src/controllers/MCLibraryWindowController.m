@@ -8,14 +8,21 @@
 
 #import "MCLibraryWindowController.h"
 
-@interface MCLibraryWindowController ()
-- (void)composeAccessory;
+static NSToolbarItemIdentifier const MCToolbarNewIdentifier    = @"MCToolbarNew";
+static NSToolbarItemIdentifier const MCToolbarImportIdentifier = @"MCToolbarImport";
+static NSToolbarItemIdentifier const MCToolbarEditIdentifier   = @"MCToolbarEdit";
+static NSToolbarItemIdentifier const MCToolbarApplyIdentifier  = @"MCToolbarApply";
+static NSToolbarItemIdentifier const MCToolbarResetIdentifier  = @"MCToolbarReset";
+
+@interface MCLibraryWindowController () <NSToolbarDelegate>
+- (void)setUpWindow;
 @end
 
 @implementation MCLibraryWindowController
 
+// The app delegate loads the window itself, which skips windowDidLoad
 - (void)awakeFromNib {
-    [self composeAccessory];
+    [self setUpWindow];
 }
 
 - (id)initWithWindow:(NSWindow *)window {
@@ -26,41 +33,90 @@
 }
 
 - (void)windowDidLoad {
-    NSLog(@"window load");
     [super windowDidLoad];
-    [self composeAccessory];
+    [self setUpWindow];
 }
 
 - (NSString *)windowNibName {
     return @"Library";
 }
 
-- (void)composeAccessory {
-    NSView *themeFrame = [self.window.contentView superview];
-    NSView *accessory = self.appliedAccessory;
-    [accessory setTranslatesAutoresizingMaskIntoConstraints:NO];
-    
-    NSRect c  = themeFrame.frame;
-    NSRect aV = accessory.frame;
-    NSRect newFrame = NSMakeRect(
-                                 c.size.width - aV.size.width,	// x position
-                                 c.size.height - aV.size.height,	// y position
-                                 aV.size.width,	// width
-                                 aV.size.height);	// height
-    
-    [accessory setFrame:newFrame];
-    [themeFrame addSubview:accessory];
-    
-    [themeFrame addConstraints:[NSLayoutConstraint
-                                constraintsWithVisualFormat:@"H:|-(>=100)-[accessory(245)]-(0)-|"
-                                options:0
-                                metrics:nil
-                                views:NSDictionaryOfVariableBindings(accessory)]];
-    [themeFrame addConstraints:[NSLayoutConstraint
-                                constraintsWithVisualFormat:@"V:|-(0)-[accessory(20)]-(>=22)-|"
-                                options:0
-                                metrics:nil
-                                views:NSDictionaryOfVariableBindings(accessory)]];
+- (void)setUpWindow {
+    NSWindow *window = self.window;
+    if (window.toolbar)
+        return;
+
+    // Let the list run under the toolbar; on macOS 26 and later the toolbar's controls are
+    // Liquid Glass and the list blurs out beneath them as it scrolls
+    window.styleMask |= NSWindowStyleMaskFullSizeContentView;
+    window.toolbarStyle = NSWindowToolbarStyleUnified;
+
+    NSToolbar *toolbar = [[NSToolbar alloc] initWithIdentifier:@"MCLibraryToolbar"];
+    toolbar.delegate = self;
+    toolbar.displayMode = NSToolbarDisplayModeIconOnly;
+    toolbar.allowsUserCustomization = NO;
+    window.toolbar = toolbar;
+
+    [window bind:@"subtitle" toObject:self withKeyPath:@"libraryViewController.libraryController.appliedCape.name" options:@{
+        NSValueTransformerNameBindingOption: @"MCAppliedCapeValueTransformer"
+    }];
+}
+
+#pragma mark - NSToolbarDelegate
+
+- (NSArray<NSToolbarItemIdentifier> *)toolbarDefaultItemIdentifiers:(NSToolbar *)toolbar {
+    return @[ NSToolbarFlexibleSpaceItemIdentifier,
+              MCToolbarNewIdentifier, MCToolbarImportIdentifier,
+              NSToolbarSpaceItemIdentifier,
+              MCToolbarEditIdentifier, MCToolbarApplyIdentifier, MCToolbarResetIdentifier ];
+}
+
+- (NSArray<NSToolbarItemIdentifier> *)toolbarAllowedItemIdentifiers:(NSToolbar *)toolbar {
+    return [self toolbarDefaultItemIdentifiers:toolbar];
+}
+
+- (NSToolbarItem *)toolbar:(NSToolbar *)toolbar itemForItemIdentifier:(NSToolbarItemIdentifier)identifier willBeInsertedIntoToolbar:(BOOL)flag {
+    NSDictionary *items = @{
+        MCToolbarNewIdentifier:    @[ NSLocalizedString(@"New Cape", @"Toolbar item"), @"plus", NSStringFromSelector(@selector(newDocument:)) ],
+        MCToolbarImportIdentifier: @[ NSLocalizedString(@"Import", @"Toolbar item"), @"square.and.arrow.down", NSStringFromSelector(@selector(openDocument:)) ],
+        MCToolbarEditIdentifier:   @[ NSLocalizedString(@"Edit", @"Toolbar item"), @"pencil", NSStringFromSelector(@selector(editCapeAction:)) ],
+        MCToolbarApplyIdentifier:  @[ NSLocalizedString(@"Apply", @"Toolbar item"), @"checkmark.circle", NSStringFromSelector(@selector(applyCapeAction:)) ],
+        MCToolbarResetIdentifier:  @[ NSLocalizedString(@"Reset to Default", @"Toolbar item"), @"arrow.counterclockwise", NSStringFromSelector(@selector(restoreCape:)) ],
+    };
+    NSArray *info = items[identifier];
+    if (!info)
+        return nil;
+
+    NSToolbarItem *item = [[NSToolbarItem alloc] initWithItemIdentifier:identifier];
+    item.label = info[0];
+    item.paletteLabel = info[0];
+    item.toolTip = info[0];
+    item.image = [NSImage imageWithSystemSymbolName:info[1] accessibilityDescription:info[0]];
+    item.action = NSSelectorFromString(info[2]);
+    item.bordered = YES;
+    // Cape actions belong to this window; the rest go to the app delegate
+    if ([self respondsToSelector:item.action])
+        item.target = self;
+    return item;
+}
+
+// Actions on a cape need one to act on
+- (BOOL)validateUserInterfaceItem:(id <NSValidatedUserInterfaceItem>)item {
+    SEL action = item.action;
+    if (action == @selector(applyCapeAction:) || action == @selector(editCapeAction:) ||
+        action == @selector(removeCapeAction:) || action == @selector(duplicateCapeAction:) ||
+        action == @selector(showCapeAction:)) {
+        return (item.tag == -1 ? self.libraryViewController.clickedCape : self.libraryViewController.selectedCape) != nil;
+    }
+    return YES;
+}
+
+- (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
+    return [self validateUserInterfaceItem:menuItem];
+}
+
+- (BOOL)validateToolbarItem:(NSToolbarItem *)item {
+    return [self validateUserInterfaceItem:item];
 }
 
 - (NSUndoManager *)windowWillReturnUndoManager:(NSWindow *)window {
@@ -161,9 +217,9 @@
 }
 
 - (id)transformedValue:(id)value {
-    return [
-            NSLocalizedString(@"Applied Cape: ", @"Accessory label for applied cape")
-            stringByAppendingString:value ? value : NSLocalizedString(@"None", @"Window Titlebar Accessory label for when no cape is applied")];
+    if (!value)
+        return NSLocalizedString(@"No Cape Applied", @"Window subtitle when no cape is applied");
+    return [NSString stringWithFormat:NSLocalizedString(@"Applied: %@", @"Window subtitle naming the applied cape"), value];
 }
 
 @end

@@ -48,7 +48,7 @@
 }
 
 - (NSImage *)toolbarItemImage {
-    return [NSImage imageNamed:NSImageNamePreferencesGeneral];
+    return [NSImage imageWithSystemSymbolName:@"gearshape" accessibilityDescription:self.toolbarItemLabel];
 }
 
 - (NSString *)toolbarItemLabel {

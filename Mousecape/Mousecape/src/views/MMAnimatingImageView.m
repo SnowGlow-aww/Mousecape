@@ -98,6 +98,15 @@ const char MCInvalidateContext;
     [self removeObserver:self forKeyPath:@"shouldFlipHorizontally"];
 }
 
+// Bindings pass nil until there is a cursor to show, or when the handedness was never set.
+// Keep the other values as they are; the frame count is divided by.
+- (void)setNilValueForKey:(NSString *)key {
+    if ([key isEqualToString:@"shouldFlipHorizontally"])
+        self.shouldFlipHorizontally = NO;
+    else if (![@[ @"frameCount", @"frameDuration", @"hotSpot" ] containsObject:key])
+        [super setNilValueForKey:key];
+}
+
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context {
     if (context == &MCInvalidateContext) {
         if ([keyPath isEqualToString:@"image"] || [keyPath isEqualToString:@"placeholderImage"]) {
