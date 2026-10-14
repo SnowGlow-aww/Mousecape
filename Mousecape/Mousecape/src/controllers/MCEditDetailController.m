@@ -65,12 +65,21 @@
 
 - (void)imageView:(MMAnimatingImageView *)imageView didAcceptDroppedImages:(NSArray *)images {
     MCCursorScale scale = cursorScaleForScale(imageView.scale);
-    
-    if (NSEvent.modifierFlags == NSAlternateKeyMask) {
-        [self.cursor addFrame:[MCCursor composeRepresentationWithFrames:images] forScale:scale];
+    NSMutableArray *bitmaps = [NSMutableArray arrayWithCapacity:images.count];
+    for (NSImageRep *image in images) {
+        NSBitmapImageRep *bitmap = [MCCursor bitmapRepresentationWithImageRep:image scale:imageView.scale];
+        if (bitmap)
+            [bitmaps addObject:bitmap];
+    }
+    if (bitmaps.count == 0)
+        return;
+
+    // Test the flag rather than compare the whole mask, which failed with Caps Lock on
+    if (NSEvent.modifierFlags & NSEventModifierFlagOption) {
+        [self.cursor addFrame:[MCCursor composeRepresentationWithFrames:bitmaps] forScale:scale];
     } else {
-        [self.cursor setRepresentation:[MCCursor composeRepresentationWithFrames:images] forScale:scale];
-        self.cursor.frameCount = images.count;
+        [self.cursor setRepresentation:[MCCursor composeRepresentationWithFrames:bitmaps] forScale:scale];
+        self.cursor.frameCount = bitmaps.count;
     }
 }
 

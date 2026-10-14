@@ -53,7 +53,9 @@ void resetAllCursors() {
         for (int x = 0; x < 45; x++) {
             CoreCursorSet(CGSMainConnectionID(), x);
         }
-        
+        // That left this process showing the last of them, a magnifying glass, until the mouse moved
+        CoreCursorSet(CGSMainConnectionID(), 0);
+
         MMLog(BOLD GREEN "Successfully restored all cursors." RESET);
     } else
         MMLog(BOLD RED "Received an error while restoring core cursors." RESET);

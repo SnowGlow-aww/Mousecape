@@ -40,6 +40,7 @@ extern MCCursorScale cursorScaleForScale(CGFloat scale);
 
 - (NSDictionary *)dictionaryRepresentation;
 + (NSImageRep *)composeRepresentationWithFrames:(NSArray *)frames;
++ (NSBitmapImageRep *)bitmapRepresentationWithImageRep:(NSImageRep *)rep scale:(CGFloat)scale;
 
 // Derived Properties
 - (NSImage *)imageWithAllReps;

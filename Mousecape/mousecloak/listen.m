@@ -21,12 +21,21 @@ NSString *appliedCapePathForUser(NSString *user) {
     return [[[appSupport stringByAppendingPathComponent:@"Mousecape/capes"] stringByAppendingPathComponent:ident] stringByAppendingPathExtension:@"cape"];
 }
 
+// Only set the pointer size if one was picked in Mousecape. Otherwise this undid the size chosen
+// in Accessibility settings at every login.
+static void applyPreferredCursorScale(void) {
+    if (MCDefault(MCPreferencesCursorScaleKey))
+        setCursorScale(defaultCursorScale());
+}
+
 static void UserSpaceChanged(SCDynamicStoreRef	store, CFArrayRef changedKeys, void *info) {
     CFStringRef currentConsoleUser = SCDynamicStoreCopyConsoleUser(store, NULL, NULL);
     
     MMLog("Current user is %s", [(__bridge NSString *)currentConsoleUser UTF8String]);
     
     if (!currentConsoleUser || CFEqual(currentConsoleUser, CFSTR("loginwindow"))) {
+        if (currentConsoleUser)
+            CFRelease(currentConsoleUser);
         return;
     }
     
@@ -36,7 +45,7 @@ static void UserSpaceChanged(SCDynamicStoreRef	store, CFArrayRef changedKeys, vo
         MMLog(BOLD RED "Application of cape failed" RESET);
     }
     
-    setCursorScale(defaultCursorScale());
+    applyPreferredCursorScale();
     
     CFRelease(currentConsoleUser);
 }
@@ -89,7 +98,7 @@ void listener(void) {
     
     // Apply the cape for the user on load
     applyCapeAtPath(appliedCapePathForUser(NSUserName()));
-    setCursorScale(defaultCursorScale());
+    applyPreferredCursorScale();
     
     CFRunLoopAddSource(CFRunLoopGetCurrent(), rls, kCFRunLoopDefaultMode);
     CFRunLoopRun();

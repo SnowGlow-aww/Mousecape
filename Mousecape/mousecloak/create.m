@@ -58,8 +58,8 @@ NSDictionary *createCapeFromDirectory(NSString *path) {
     NSString *author = MMGet(@"Author");
     NSString *identifier = MMGet(@"Identifier");
     NSString *name = MMGet(@"Cape Name");
-    MMLog("Cape Version: ");
-    scanf("%lf", &version);
+    // Read the whole line; scanf left its newline behind, so the HiDPI answer always came back empty
+    version = MMGet(@"Cape Version").doubleValue;
     NSString *hidpi = MMGet(@"HiDPI? (y/n)");
     
     MMLog("");
@@ -127,7 +127,7 @@ NSDictionary *createCapeFromDirectory(NSString *path) {
         [data setObject:@(fD) forKey:MCCursorDictionaryFrameDuratiomKey];
         
         [data setObject:representations forKey:MCCursorDictionaryRepresentationsKey];
-        [cursors setObject:data forKey:identifier];
+        [cursors setObject:data forKey:ident];
     }
     
     if (cursors.count == 0)
@@ -177,6 +177,15 @@ NSDictionary *createCapeFromMightyMouse(NSDictionary *mightyMouse, NSDictionary 
         NSNumber *wide  = data[@"PixelsWide"];
         NSNumber *high  = data[@"PixelsHigh"];
         
+        // The bitmap reads straight from the file's bytes, so make sure they cover what the header claims
+        NSInteger rows = high.integerValue * fc.integerValue;
+        if (![rawData isKindOfClass:[NSData class]] || wide.integerValue <= 0 || rows <= 0 || bpp.integerValue <= 0 ||
+            bpr.integerValue < wide.integerValue * bpp.integerValue / 8 ||
+            rawData.length < (NSUInteger)(bpr.integerValue * rows)) {
+            MMLog(BOLD RED "Skipping cursor %s: its image data is malformed." RESET, key.UTF8String);
+            continue;
+        }
+
         unsigned char *bytes = (unsigned char*)rawData.bytes;
         
         NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:&bytes
@@ -256,6 +265,12 @@ NSDictionary *processedCapeWithIdentifier(NSString *identifier) {
     return dict;
 }
 
+// Dumping enlarges and hides the cursor; put it back however the dump ends
+static void finishDump(float originalScale) {
+    CGSSetCursorScale(CGSMainConnectionID(), originalScale);
+    CGSShowCursor(CGSMainConnectionID());
+}
+
 BOOL dumpCursorsToFile(NSString *path, BOOL (^progress)(NSUInteger current, NSUInteger total)) {
     MMLog("Dumping cursors...");
         
@@ -276,6 +291,7 @@ BOOL dumpCursorsToFile(NSString *path, BOOL (^progress)(NSUInteger current, NSUI
             current = i;
 
             if (!progress(current, total)) {
+                finishDump(originalScale);
                 return NO;
             }
         }
@@ -289,6 +305,7 @@ BOOL dumpCursorsToFile(NSString *path, BOOL (^progress)(NSUInteger current, NSUI
             current = i + x;
 
             if (!progress(current, total)) {
+                finishDump(originalScale);
                 return NO;
             }
         }
@@ -319,8 +336,7 @@ BOOL dumpCursorsToFile(NSString *path, BOOL (^progress)(NSUInteger current, NSUI
     cape[MCCursorDictionaryVersionKey] = @(MCCursorCreatorVersion);
     cape[MCCursorDictionaryMinimumVersionKey] = @(MCCursorParserVersion);
     
-    CGSSetCursorScale(CGSMainConnectionID(), originalScale);
-    CGSShowCursor(CGSMainConnectionID());
+    finishDump(originalScale);
     
     return [cape writeToFile:path atomically:NO];
 }
@@ -345,6 +361,7 @@ BOOL dumpCursorsToFolder(NSString *path, BOOL (^progress)(NSUInteger current, NS
         current = i;
         if (progress) {
             if (!progress(current, total)) {
+                finishDump(originalScale);
                 return NO;
             }
         }
@@ -359,6 +376,7 @@ BOOL dumpCursorsToFolder(NSString *path, BOOL (^progress)(NSUInteger current, NS
         current = i + x;
         if (progress) {
             if (!progress(current, total)) {
+                finishDump(originalScale);
                 return NO;
             }
         }
@@ -378,8 +396,7 @@ BOOL dumpCursorsToFolder(NSString *path, BOOL (^progress)(NSUInteger current, NS
         progress(total, total);
     }
 
-    CGSSetCursorScale(CGSMainConnectionID(), originalScale);
-    CGSShowCursor(CGSMainConnectionID());
+    finishDump(originalScale);
 
     return YES;
 }

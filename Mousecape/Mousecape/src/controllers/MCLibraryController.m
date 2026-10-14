@@ -75,7 +75,7 @@
     }
 
     lib.fileURL = [self URLForCape:lib];
-    [lib writeToFile:lib.fileURL.path atomically:NO];
+    [lib writeToFile:lib.fileURL.path atomically:YES];
     
     [self addCape:lib];
 }
@@ -121,14 +121,13 @@
     
     [self.capes removeObject:cape];
     
-    // Move the file to the trash
-    NSFileManager *manager = [NSFileManager defaultManager];
-    NSURL *destinationURL = [NSURL fileURLWithPath:[[@"~/.Trash" stringByExpandingTildeInPath] stringByAppendingPathComponent:cape.fileURL.lastPathComponent] isDirectory:NO];
-    
-    [manager removeItemAtURL:destinationURL error:NULL];
-    [manager moveItemAtURL:cape.fileURL toURL:destinationURL error:NULL];
+    // Move the file to the trash. The system picks a free name there; moving it in by hand
+    // permanently deleted any earlier cape already in the trash under the same name.
+    NSURL *trashedURL = nil;
+    [[NSFileManager defaultManager] trashItemAtURL:cape.fileURL resultingItemURL:&trashedURL error:NULL];
 
-    [[self.undoManager prepareWithInvocationTarget:self] importCapeAtURL:destinationURL];
+    if (trashedURL)
+        [[self.undoManager prepareWithInvocationTarget:self] importCapeAtURL:trashedURL];
     if (!self.undoManager.isUndoing) {
         [self.undoManager setActionName:[@"Remove " stringByAppendingString:cape.name]];
     }

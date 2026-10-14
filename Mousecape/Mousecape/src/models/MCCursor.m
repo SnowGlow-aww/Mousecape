@@ -12,7 +12,7 @@ MCCursorScale cursorScaleForScale(CGFloat scale) {
     if (scale < 0.0)
         return MCCursorScaleNone;
     
-    return (MCCursorScale)((NSInteger)scale * 100);
+    return (MCCursorScale)lround(scale * 100);
 }
 
 @interface MCCursor ()
@@ -99,7 +99,9 @@ MCCursorScale cursorScaleForScale(CGFloat scale) {
             self.frameDuration = frameDuration.doubleValue;
             self.hotSpot       = NSMakePoint(hotSpotX.doubleValue, hotSpotY.doubleValue);
             //            self.repeatCount   = repeatCount.unsignedIntegerValue;
-            
+            // Set before the reps, which take their size from it; the first one used to get 0x0
+            self.size          = NSMakeSize(pointsWide.doubleValue, pointsHigh.doubleValue);
+
             for (NSData *data in reps) {
                 // data in v2.0 documents are saved as PNGs
                 NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithData:data];
@@ -107,8 +109,6 @@ MCCursorScale cursorScaleForScale(CGFloat scale) {
 
                 [self setRepresentation:rep.retaggedSRGBSpace forScale:cursorScaleForScale(rep.pixelsWide / pointsWide.doubleValue)];
             }
-            
-            self.size          = NSMakeSize(pointsWide.doubleValue, pointsHigh.doubleValue);
 
             return YES;
         }
@@ -260,6 +260,35 @@ MCCursorScale cursorScaleForScale(CGFloat scale) {
     return newRep;
 }
 
+// Capes store pixels, so vector images (a dropped PDF or SVG) are drawn at the given scale.
+// Saving a cursor that still held one crashed.
++ (NSBitmapImageRep *)bitmapRepresentationWithImageRep:(NSImageRep *)rep scale:(CGFloat)scale {
+    if (!rep || [rep isKindOfClass:[NSBitmapImageRep class]])
+        return (NSBitmapImageRep *)rep;
+
+    NSInteger width = (NSInteger)ceil(rep.size.width * MAX(scale, 1.0));
+    NSInteger height = (NSInteger)ceil(rep.size.height * MAX(scale, 1.0));
+    if (width <= 0 || height <= 0)
+        return nil;
+
+    NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+                                                                       pixelsWide:width
+                                                                       pixelsHigh:height
+                                                                    bitsPerSample:8
+                                                                  samplesPerPixel:4
+                                                                         hasAlpha:YES
+                                                                         isPlanar:NO
+                                                                   colorSpaceName:NSCalibratedRGBColorSpace
+                                                                      bytesPerRow:4 * width
+                                                                     bitsPerPixel:32];
+    [NSGraphicsContext saveGraphicsState];
+    [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithBitmapImageRep:bitmap]];
+    [rep drawInRect:NSMakeRect(0, 0, width, height)];
+    [NSGraphicsContext restoreGraphicsState];
+
+    return bitmap;
+}
+
 - (NSInteger)framesForScale:(MCCursorScale)scale {
     return [self representationForScale:scale].pixelsHigh / self.size.height;
 }
@@ -278,6 +307,9 @@ MCCursorScale cursorScaleForScale(CGFloat scale) {
 
 - (NSImage *)imageWithAllReps {
     NSImage *image = [[NSImage alloc] initWithSize:NSMakeSize(self.size.width, self.size.height * self.frameCount)];
+    // Pick reps by resolution. When some reps are grayscale and others color, as in the sample
+    // cape, matching color first chose the 1x rep and drew it blurry on Retina screens.
+    image.prefersColorMatch = NO;
     [image addRepresentations:self.representations.allValues];
     return image;
 }

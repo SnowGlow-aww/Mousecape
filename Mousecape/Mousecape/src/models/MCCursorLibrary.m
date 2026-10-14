@@ -377,7 +377,7 @@ const char MCCursorPropertiesContext;
 
     [[NSNotificationCenter defaultCenter] postNotificationName:MCLibraryWillSaveNotificationName object:self];
 
-    BOOL success = [self writeToFile:self.fileURL.path atomically:NO];
+    BOOL success = [self writeToFile:self.fileURL.path atomically:YES];
     if (success) {
         [self updateChangeCount:NSChangeCleared];
         [[NSNotificationCenter defaultCenter] postNotificationName:MCLibraryDidSaveNotificationName object:self];

@@ -326,12 +326,15 @@ const char MCInvalidateContext;
         NSMutableArray *acceptedDrops = [NSMutableArray arrayWithCapacity:imageArray.count];
         for (NSInteger idx = 0; idx < imageArray.count; idx++) {
             id obj = imageArray[idx];
+            NSImageRep *rep = nil;
             if ([obj isKindOfClass:[NSImage class]]) {
-                [acceptedDrops addObject:[[obj representations] firstObject]];
+                rep = [[obj representations] firstObject];
             } else {
-                // NSURL
-                [acceptedDrops addObject:[NSImageRep imageRepWithContentsOfURL:obj]];
+                // NSURL, which is nil for files that aren't images; adding that crashed
+                rep = [NSImageRep imageRepWithContentsOfURL:obj];
             }
+            if (rep)
+                [acceptedDrops addObject:rep];
         }
 		
 		if (acceptedDrops.count > 0) {
