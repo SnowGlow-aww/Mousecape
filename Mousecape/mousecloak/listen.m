@@ -41,15 +41,28 @@ static void UserSpaceChanged(SCDynamicStoreRef	store, CFArrayRef changedKeys, vo
     CFRelease(currentConsoleUser);
 }
 
+static NSUInteger reconfigurationCount = 0;
+
 void reconfigurationCallback(CGDirectDisplayID display,
     	CGDisplayChangeSummaryFlags flags,
     	void *userInfo) {
-    MMLog("Reconfigure user space");
-    applyCapeAtPath(appliedCapePathForUser(NSUserName()));
-    float scale;
-    CGSGetCursorScale(CGSMainConnectionID(), &scale);
-    CGSSetCursorScale(CGSMainConnectionID(), scale + .3);
-    CGSSetCursorScale(CGSMainConnectionID(), scale);
+    // This runs for every display both before and after each change. Re-apply once, after the
+    // last of them, instead of decoding and registering the whole cape every time.
+    if (flags & kCGDisplayBeginConfigurationFlag)
+        return;
+
+    NSUInteger count = ++reconfigurationCount;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (count != reconfigurationCount)
+            return;
+
+        MMLog("Reconfigure user space");
+        applyCapeAtPath(appliedCapePathForUser(NSUserName()));
+        float scale;
+        CGSGetCursorScale(CGSMainConnectionID(), &scale);
+        CGSSetCursorScale(CGSMainConnectionID(), scale + .3);
+        CGSSetCursorScale(CGSMainConnectionID(), scale);
+    });
 }
 
 

@@ -27,6 +27,7 @@
 #define BOLD    "\033[1m"
 
 extern NSString *defaultCursors[];
+extern NSString *cursorAliases[][2];
 extern NSString *MCErrorDomain;
 extern NSDictionary *cursorNameMap;
 
@@ -61,6 +62,8 @@ extern const NSString *MCCursorDictionaryPointsHighKey;
 extern const NSString *MCCursorDictionaryRepresentationsKey;
 
 extern NSDictionary *cursorMap(void);
+extern NSString *cursorAliasForIdentifier(NSString *identifier);
+extern NSString *cursorIdentifierForAlias(NSString *alias);
 extern NSString *nameForCursorIdentifier(NSString *identifier);
 extern NSString *cursorIdentifierForName(NSString *name);
 

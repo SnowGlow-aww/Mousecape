@@ -34,20 +34,18 @@ void backupCursorForIdentifier(NSString *ident) {
 }
 
 void backupAllCursors() {
-    bool arrowRegistered = false;
-    MCIsCursorRegistered(CGSMainConnectionID(), (char *)backupStringForIdentifier(@"com.apple.coregraphics.Arrow").UTF8String, &arrowRegistered);
-    
-    if (arrowRegistered) {
-        MMLog("Skipping backup, backup already exists");
-//         we are already backed up
-        return;
-    }
-    // Backup main cursors first
+    // Check each cursor on its own. Skipping everything once the arrow had a backup left cursors
+    // without one, and those can't be removed to reset them (Wait got stuck this way).
     NSUInteger i = 0;
     NSString *key = nil;
     while ((key = defaultCursors[i]) != nil) {
         backupCursorForIdentifier(key);
         i++;
+    }
+
+    // Skipped on systems that don't register these names
+    for (i = 0; cursorAliases[i][1] != nil; i++) {
+        backupCursorForIdentifier(cursorAliases[i][1]);
     }
     // no need to backup core cursors
     

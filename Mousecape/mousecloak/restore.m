@@ -26,7 +26,8 @@ void restoreCursorForIdentifier(NSString *ident) {
         applyCapeForIdentifier(cape, restoreIdent, YES);
     }
 
-    CGSRemoveRegisteredCursor(CGSMainConnectionID(), (char *)ident.UTF8String, false);
+    // Backups are registered globally, and only a global remove actually drops them
+    CGSRemoveRegisteredCursor(CGSMainConnectionID(), (char *)ident.UTF8String, true);
 }
 
 void resetAllCursors() {
@@ -38,6 +39,10 @@ void resetAllCursors() {
     while ((key = defaultCursors[i]) != nil) {
         restoreCursorForIdentifier(backupStringForIdentifier(key));
         i++;
+    }
+
+    for (i = 0; cursorAliases[i][1] != nil; i++) {
+        restoreCursorForIdentifier(backupStringForIdentifier(cursorAliases[i][1]));
     }
 
     // Backup auxiliary cursors

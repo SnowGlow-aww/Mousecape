@@ -22,6 +22,13 @@ NSString *defaultCursors[] = {
     @"com.apple.coregraphics.Empty",
     nil };
 
+// Since macOS 26 the system draws the arrow and I-beam from these names. Registering the old
+// names still returns success but changes nothing on screen.
+NSString *cursorAliases[][2] = {
+    { @"com.apple.coregraphics.Arrow", @"com.apple.coregraphics.ArrowS" },
+    { @"com.apple.coregraphics.IBeam", @"com.apple.coregraphics.IBeamS" },
+    { nil, nil } };
+
 NSString *MCErrorDomain = @"com.alexzielenski.mousecape.error";
 
 const CGFloat   MCCursorCreatorVersion               = 2.0;
@@ -190,6 +197,22 @@ extern NSDictionary *cursorMap() {
     return cursorNameMap;
 }
 
+NSString *cursorAliasForIdentifier(NSString *identifier) {
+    for (NSUInteger i = 0; cursorAliases[i][0] != nil; i++) {
+        if ([cursorAliases[i][0] isEqualToString:identifier])
+            return cursorAliases[i][1];
+    }
+    return nil;
+}
+
+NSString *cursorIdentifierForAlias(NSString *alias) {
+    for (NSUInteger i = 0; cursorAliases[i][0] != nil; i++) {
+        if ([cursorAliases[i][1] isEqualToString:alias])
+            return cursorAliases[i][0];
+    }
+    return nil;
+}
+
 NSString *nameForCursorIdentifier(NSString *identifier) {
     NSString *name = cursorMap()[identifier];
     return name ?: @"Unknown";
@@ -217,11 +240,13 @@ CGError MCIsCursorRegistered(CGSConnectionID cid, char *cursorName, bool *regist
 }
 
 BOOL MCCursorIsPointer(NSString *identifier) {
+    identifier = cursorIdentifierForAlias(identifier) ?: identifier;
+
     static NSArray *pointers = nil;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSDictionary *c = cursorMap();
-        pointers = [@[ [c allKeysForObject:@"Alias"][0], [c allKeysForObject:@"Arrow"][0], [c allKeysForObject:@"Busy"][0], [c allKeysForObject:@"Closed"][0], [c allKeysForObject:@"Copy Drag"][0], [c allKeysForObject:@"Counting Down"][0], [c allKeysForObject:@"Counting Up"][0], [c allKeysForObject:@"Counting Up/Down"][0], [c allKeysForObject:@"Ctx Menu"][0], [c allKeysForObject:@"Forbidden"][0], [c allKeysForObject:@"Link"][0], [c allKeysForObject:@"Move"][0], [c allKeysForObject:@"Open"][0], [c allKeysForObject:@"Pointing"][0], [c allKeysForObject:@"Poof"][0], [c allKeysForObject:@"Wait"][0], [c allKeysForObject:@"Zoom In"][0], [c allKeysForObject:@"Zoom Out"] ] retain];
+        pointers = [@[ [c allKeysForObject:@"Alias"][0], [c allKeysForObject:@"Arrow"][0], [c allKeysForObject:@"Busy"][0], [c allKeysForObject:@"Closed"][0], [c allKeysForObject:@"Copy Drag"][0], [c allKeysForObject:@"Counting Down"][0], [c allKeysForObject:@"Counting Up"][0], [c allKeysForObject:@"Counting Up/Down"][0], [c allKeysForObject:@"Ctx Menu"][0], [c allKeysForObject:@"Forbidden"][0], [c allKeysForObject:@"Link"][0], [c allKeysForObject:@"Move"][0], [c allKeysForObject:@"Open"][0], [c allKeysForObject:@"Pointing"][0], [c allKeysForObject:@"Poof"][0], [c allKeysForObject:@"Wait"][0], [c allKeysForObject:@"Zoom In"][0], [c allKeysForObject:@"Zoom Out"][0] ] retain];
     });
 
     return [pointers containsObject:identifier];

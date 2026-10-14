@@ -12,10 +12,63 @@
 #import "MCPrefs.h"
 #import "NSBitmapImageRep+ColorSpace.h"
 
+// The WindowServer refuses to register animations with more frames than this
+#define MCMaxFrameCount 24
+
+// Copies every step-th frame out of a vertical strip of frameCount frames
+static CGImageRef createImageKeepingFrames(CGImageRef image, NSUInteger frameCount, NSUInteger step, NSUInteger keptCount) {
+    size_t width = CGImageGetWidth(image);
+    size_t frameHeight = CGImageGetHeight(image) / frameCount;
+
+    CGColorSpaceRef space = CGImageGetColorSpace(image);
+    CGContextRef ctx = NULL;
+    if (space && CGColorSpaceGetModel(space) == kCGColorSpaceModelRGB)
+        ctx = CGBitmapContextCreate(NULL, width, frameHeight * keptCount, 8, 0, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+    if (!ctx) {
+        space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+        ctx = CGBitmapContextCreate(NULL, width, frameHeight * keptCount, 8, 0, space, (CGBitmapInfo)kCGImageAlphaPremultipliedLast);
+        CGColorSpaceRelease(space);
+    }
+    if (!ctx)
+        return NULL;
+
+    CGContextSetBlendMode(ctx, kCGBlendModeCopy);
+    for (NSUInteger i = 0; i < keptCount; i++) {
+        // Image rects count from the top, the context counts from the bottom
+        CGImageRef frame = CGImageCreateWithImageInRect(image, CGRectMake(0, i * step * frameHeight, width, frameHeight));
+        CGContextDrawImage(ctx, CGRectMake(0, (keptCount - 1 - i) * frameHeight, width, frameHeight), frame);
+        CGImageRelease(frame);
+    }
+
+    CGImageRef result = CGBitmapContextCreateImage(ctx);
+    CGContextRelease(ctx);
+    return result;
+}
+
 BOOL applyCursorForIdentifier(NSUInteger frameCount, CGFloat frameDuration, CGPoint hotSpot, CGSize size, NSArray *images, NSString *ident, NSUInteger repeatCount) {
-    if (frameCount > 24 || frameCount < 1) {
-        MMLog(BOLD RED "Frame count of %s out of range [1...24]", ident.UTF8String);
+    if (frameCount < 1) {
+        MMLog(BOLD RED "Frame count of %s out of range [1...%d]" RESET, ident.UTF8String, MCMaxFrameCount);
         return NO;
+    }
+
+    if (frameCount > MCMaxFrameCount) {
+        // Show every step-th frame for step times as long so the cycle keeps its length. The stock
+        // wait cursor on macOS 27 has 30 frames, so without this it could never be backed up.
+        NSUInteger step = (frameCount + MCMaxFrameCount - 1) / MCMaxFrameCount;
+        NSUInteger keptCount = (frameCount + step - 1) / step;
+        NSMutableArray *keptImages = [NSMutableArray arrayWithCapacity:images.count];
+        for (id image in images) {
+            CGImageRef kept = createImageKeepingFrames((CGImageRef)image, frameCount, step, keptCount);
+            if (!kept)
+                return NO;
+            [keptImages addObject:(id)kept];
+            CGImageRelease(kept);
+        }
+
+        MMLog("Reduced %s from %lu to %lu frames", ident.UTF8String, (unsigned long)frameCount, (unsigned long)keptCount);
+        images = keptImages;
+        frameCount = keptCount;
+        frameDuration *= step;
     }
 
     char *idenfifier = (char *)ident.UTF8String;
@@ -34,12 +87,9 @@ BOOL applyCursorForIdentifier(NSUInteger frameCount, CGFloat frameDuration, CGPo
     return (err == kCGErrorSuccess);
 }
 
-BOOL applyCapeForIdentifier(NSDictionary *cursor, NSString *identifier, BOOL restore) {
-    if (!cursor || !identifier) {
-        NSLog(@"bad seed");
-        return NO;
-    }
-
+// Registers the cursor under every given name, decoding its images only once
+static BOOL applyCapeForIdentifiers(NSDictionary *cursor, NSArray *identifiers, BOOL restore) {
+    NSString *identifier = identifiers.firstObject;
     BOOL lefty = MCFlag(MCPreferencesHandednessKey);
     BOOL pointer = MCCursorIsPointer(identifier);
     NSNumber *frameCount    = cursor[MCCursorDictionaryFrameCountKey];
@@ -107,7 +157,19 @@ BOOL applyCapeForIdentifier(NSDictionary *cursor, NSString *identifier, BOOL res
         }
     }
     
-    return applyCursorForIdentifier(frameCount.unsignedIntegerValue, frameDuration.doubleValue, hotSpot, size, images, identifier, 0);
+    for (NSString *name in identifiers) {
+        if (!applyCursorForIdentifier(frameCount.unsignedIntegerValue, frameDuration.doubleValue, hotSpot, size, images, name, 0))
+            return NO;
+    }
+    return YES;
+}
+
+BOOL applyCapeForIdentifier(NSDictionary *cursor, NSString *identifier, BOOL restore) {
+    if (!cursor || !identifier) {
+        NSLog(@"bad seed");
+        return NO;
+    }
+    return applyCapeForIdentifiers(cursor, @[ identifier ], restore);
 }
 
 BOOL applyCape(NSDictionary *dictionary) {
@@ -123,9 +185,19 @@ BOOL applyCape(NSDictionary *dictionary) {
         
         for (NSString *key in cursors) {
             NSDictionary *cape = cursors[key];
-            MMLog("Hooking for %s", key.UTF8String);
-            
-            BOOL success = applyCapeForIdentifier(cape, key, NO);
+            NSArray *identifiers = @[ key ];
+
+            // Also theme the name newer systems draw this cursor from, unless the cape has its own
+            NSString *alias = cursorAliasForIdentifier(key);
+            bool aliasRegistered = false;
+            if (alias && !cursors[alias])
+                MCIsCursorRegistered(CGSMainConnectionID(), (char *)alias.UTF8String, &aliasRegistered);
+            if (aliasRegistered)
+                identifiers = @[ key, alias ];
+
+            MMLog("Hooking for %s", [identifiers componentsJoinedByString:@", "].UTF8String);
+
+            BOOL success = applyCapeForIdentifiers(cape, identifiers, NO);
             if (!success) {
                 MMLog(BOLD RED "Failed to hook identifier %s for some unknown reason. Bailing out..." RESET, key.UTF8String);
                 return NO;
