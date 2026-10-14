@@ -45,6 +45,31 @@ static CGImageRef createImageKeepingFrames(CGImageRef image, NSUInteger frameCou
     return result;
 }
 
+// Draws the image as premultiplied BGRA, which is how the WindowServer keeps cursors. Given any
+// other layout, registration converts every pixel itself, one cursor at a time; done here, applyCape
+// can spread the work over all cores.
+static CGImageRef createCursorImage(CGImageRef image, BOOL mirror) {
+    size_t width = CGImageGetWidth(image);
+    size_t height = CGImageGetHeight(image);
+    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef ctx = CGBitmapContextCreate(NULL, width, height, 8, 0, space, (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+    CGColorSpaceRelease(space);
+    if (!ctx)
+        return NULL;
+
+    CGContextSetBlendMode(ctx, kCGBlendModeCopy);
+    CGContextSetInterpolationQuality(ctx, kCGInterpolationNone);
+    if (mirror) {
+        CGContextTranslateCTM(ctx, width, 0);
+        CGContextScaleCTM(ctx, -1, 1);
+    }
+    CGContextDrawImage(ctx, CGRectMake(0, 0, width, height), image);
+
+    CGImageRef result = CGBitmapContextCreateImage(ctx);
+    CGContextRelease(ctx);
+    return result;
+}
+
 BOOL applyCursorForIdentifier(NSUInteger frameCount, CGFloat frameDuration, CGPoint hotSpot, CGSize size, NSArray *images, NSString *ident, NSUInteger repeatCount) {
     if (frameCount < 1) {
         MMLog(BOLD RED "Frame count of %s out of range [1...%d]" RESET, ident.UTF8String, MCMaxFrameCount);
@@ -87,11 +112,36 @@ BOOL applyCursorForIdentifier(NSUInteger frameCount, CGFloat frameDuration, CGPo
     return (err == kCGErrorSuccess);
 }
 
-// Registers the cursor under every given name, decoding its images only once
-static BOOL applyCapeForIdentifiers(NSDictionary *cursor, NSArray *identifiers, BOOL restore) {
-    NSString *identifier = identifiers.firstObject;
-    BOOL lefty = MCFlag(MCPreferencesHandednessKey);
-    BOOL pointer = MCCursorIsPointer(identifier);
+static BOOL shouldMirrorCursor(NSString *identifier, BOOL restore) {
+    return !restore && MCCursorIsPointer(identifier) && MCFlag(MCPreferencesHandednessKey);
+}
+
+// The cursor's images ready to register, or nil if one can't be read. Safe to call from any thread.
+static NSArray *imagesForCursor(NSDictionary *cursor, BOOL mirror) {
+    NSArray *reps = cursor[MCCursorDictionaryRepresentationsKey];
+    NSMutableArray *images = [NSMutableArray arrayWithCapacity:reps.count];
+
+    for (id object in reps) {
+        // Backups come straight from the WindowServer, so hand them back untouched
+        BOOL fromServer = CFGetTypeID((__bridge CFTypeRef)object) == CGImageGetTypeID();
+        if (fromServer && !mirror) {
+            [images addObject:object];
+            continue;
+        }
+
+        CGImageRef image = fromServer ? (CGImageRef)object : [[[[NSBitmapImageRep alloc] initWithData:object] autorelease].retaggedSRGBSpace CGImage];
+        CGImageRef converted = image ? createCursorImage(image, mirror) : NULL;
+        if (!converted)
+            return nil;
+        [images addObject:(id)converted];
+        CGImageRelease(converted);
+    }
+
+    return images;
+}
+
+// Registers the prepared images under every given name
+static BOOL registerCursor(NSDictionary *cursor, NSArray *images, BOOL mirror, NSArray *identifiers) {
     NSNumber *frameCount    = cursor[MCCursorDictionaryFrameCountKey];
     NSNumber *frameDuration = cursor[MCCursorDictionaryFrameDuratiomKey];
     //    NSNumber *repeatCount   = cursor[MCCursorDictionaryRepeatCountKey];
@@ -100,63 +150,12 @@ static BOOL applyCapeForIdentifiers(NSDictionary *cursor, NSArray *identifiers, 
                                           [cursor[MCCursorDictionaryHotSpotYKey] doubleValue]);
     CGSize size             = CGSizeMake([cursor[MCCursorDictionaryPointsWideKey] doubleValue],
                                          [cursor[MCCursorDictionaryPointsHighKey] doubleValue]);
-    NSArray *reps           = cursor[MCCursorDictionaryRepresentationsKey];
-    NSMutableArray *images  = [NSMutableArray array];
 
-    if (lefty && !restore && pointer) {
-        MMLog("Lefty mode for %s", identifier.UTF8String);
+    if (mirror) {
+        MMLog("Lefty mode for %s", [identifiers.firstObject UTF8String]);
         hotSpot.x = size.width - hotSpot.x - 1;
     }
 
-    for (id object in reps) {
-        CFTypeID type = CFGetTypeID((__bridge CFTypeRef)object);
-        NSBitmapImageRep *rep;
-        if (type == CGImageGetTypeID()) {
-            rep = [[[NSBitmapImageRep alloc] initWithCGImage:(__bridge CGImageRef)object] autorelease];
-        } else {
-            rep = [[[NSBitmapImageRep alloc] initWithData:object] autorelease];
-        }
-        rep = rep.retaggedSRGBSpace;
-
-        if (!lefty || restore || !pointer) {
-            // special case if array has a type of CGImage already there is no need to convert it
-            if (type == CGImageGetTypeID()) {
-                images[images.count] = object;
-                continue;
-            }
-            
-            images[images.count] = (__bridge id)[rep CGImage];
-            
-        } else {
-            NSBitmapImageRep *newRep = [[[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
-                                                                               pixelsWide:rep.pixelsWide
-                                                                               pixelsHigh:rep.pixelsHigh
-                                                                            bitsPerSample:8
-                                                                          samplesPerPixel:4
-                                                                                 hasAlpha:YES
-                                                                                 isPlanar:NO
-                                                                           colorSpaceName:NSCalibratedRGBColorSpace
-                                                                              bytesPerRow:4 * rep.pixelsWide
-                                                                             bitsPerPixel:32] autorelease];
-            NSGraphicsContext *ctx = [NSGraphicsContext graphicsContextWithBitmapImageRep:newRep];
-            [NSGraphicsContext saveGraphicsState];
-            [NSGraphicsContext setCurrentContext:ctx];
-            NSAffineTransform *transform = [NSAffineTransform transform];
-            [transform translateXBy:rep.pixelsWide yBy:0];
-            [transform scaleXBy:-1 yBy:1];
-            [transform concat];
-
-            [rep drawInRect:NSMakeRect(0, 0, rep.pixelsWide, rep.pixelsHigh)
-                   fromRect:NSZeroRect
-                  operation:NSCompositingOperationSourceOver
-                   fraction:1.0
-             respectFlipped:NO
-                      hints:nil];
-            [NSGraphicsContext restoreGraphicsState];
-            images[images.count] = (__bridge id)[newRep CGImage];
-        }
-    }
-    
     for (NSString *name in identifiers) {
         if (!applyCursorForIdentifier(frameCount.unsignedIntegerValue, frameDuration.doubleValue, hotSpot, size, images, name, 0))
             return NO;
@@ -169,7 +168,10 @@ BOOL applyCapeForIdentifier(NSDictionary *cursor, NSString *identifier, BOOL res
         NSLog(@"bad seed");
         return NO;
     }
-    return applyCapeForIdentifiers(cursor, @[ identifier ], restore);
+
+    BOOL mirror = shouldMirrorCursor(identifier, restore);
+    NSArray *images = imagesForCursor(cursor, mirror);
+    return images && registerCursor(cursor, images, mirror, @[ identifier ]);
 }
 
 BOOL applyCape(NSDictionary *dictionary) {
@@ -183,24 +185,48 @@ BOOL applyCape(NSDictionary *dictionary) {
         
         MMLog("Applying cape: %s %.02f", name.UTF8String, version.floatValue);
         
-        for (NSString *key in cursors) {
-            NSDictionary *cape = cursors[key];
-            NSArray *identifiers = @[ key ];
+        NSArray *keys = cursors.allKeys;
+        NSUInteger batchSize = NSProcessInfo.processInfo.activeProcessorCount;
+        for (NSUInteger start = 0; start < keys.count; start += batchSize) @autoreleasepool {
+            NSArray *batch = [keys subarrayWithRange:NSMakeRange(start, MIN(batchSize, keys.count - start))];
+            NSMutableArray *prepared = [NSMutableArray arrayWithCapacity:batch.count];
+            for (NSUInteger i = 0; i < batch.count; i++)
+                [prepared addObject:[NSNull null]];
 
-            // Also theme the name newer systems draw this cursor from, unless the cape has its own
-            NSString *alias = cursorAliasForIdentifier(key);
-            bool aliasRegistered = false;
-            if (alias && !cursors[alias])
-                MCIsCursorRegistered(CGSMainConnectionID(), (char *)alias.UTF8String, &aliasRegistered);
-            if (aliasRegistered)
-                identifiers = @[ key, alias ];
+            // Decoding the images is most of the work and each cursor's are independent, so spread
+            // them over the cores. Going in batches keeps only a few cursors' pixels in memory.
+            dispatch_apply(batch.count, DISPATCH_APPLY_AUTO, ^(size_t i) {
+                @autoreleasepool {
+                    NSString *key = batch[i];
+                    NSArray *images = imagesForCursor(cursors[key], shouldMirrorCursor(key, NO));
+                    if (images) {
+                        @synchronized (prepared) {
+                            prepared[i] = images;
+                        }
+                    }
+                }
+            });
 
-            MMLog("Hooking for %s", [identifiers componentsJoinedByString:@", "].UTF8String);
+            for (NSUInteger i = 0; i < batch.count; i++) {
+                NSString *key = batch[i];
+                NSArray *identifiers = @[ key ];
 
-            BOOL success = applyCapeForIdentifiers(cape, identifiers, NO);
-            if (!success) {
-                MMLog(BOLD RED "Failed to hook identifier %s for some unknown reason. Bailing out..." RESET, key.UTF8String);
-                return NO;
+                // Also theme the name newer systems draw this cursor from, unless the cape has its own
+                NSString *alias = cursorAliasForIdentifier(key);
+                bool aliasRegistered = false;
+                if (alias && !cursors[alias])
+                    MCIsCursorRegistered(CGSMainConnectionID(), (char *)alias.UTF8String, &aliasRegistered);
+                if (aliasRegistered)
+                    identifiers = @[ key, alias ];
+
+                MMLog("Hooking for %s", [identifiers componentsJoinedByString:@", "].UTF8String);
+
+                NSArray *images = prepared[i];
+                BOOL success = images != (id)[NSNull null] && registerCursor(cursors[key], images, shouldMirrorCursor(key, NO), identifiers);
+                if (!success) {
+                    MMLog(BOLD RED "Failed to hook identifier %s for some unknown reason. Bailing out..." RESET, key.UTF8String);
+                    return NO;
+                }
             }
         }
         
