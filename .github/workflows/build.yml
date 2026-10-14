@@ -1,0 +1,61 @@
+name: Build
+
+on:
+  push:
+    branches: [master, macos27]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          sw_vers
+
+      # Universal so it runs natively on both Apple silicon and Intel, never under Rosetta.
+      # No signing identity on the runner, so everything is signed ad hoc.
+      - name: Build
+        run: |
+          xcodebuild \
+            -project Mousecape/Mousecape.xcodeproj \
+            -target Mousecape \
+            -configuration Release \
+            ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
+            SYMROOT="$RUNNER_TEMP/build" \
+            build
+
+      - name: Check the bundle
+        run: |
+          APP="$RUNNER_TEMP/build/Release/Mousecape.app"
+          for bin in \
+            "$APP/Contents/MacOS/Mousecape" \
+            "$APP/Contents/MacOS/mousecloak" \
+            "$APP/Contents/Library/LoginItems/com.alexzielenski.mousecloakhelper.app/Contents/MacOS/com.alexzielenski.mousecloakhelper"; do
+            archs=$(lipo -archs "$bin")
+            echo "$bin: $archs"
+            [[ "$archs" == *arm64* && "$archs" == *x86_64* ]] || { echo "::error::$bin is not universal"; exit 1; }
+          done
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          "$APP/Contents/MacOS/mousecloak" --help > /dev/null
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$RUNNER_TEMP/Mousecape.zip"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Mousecape
+          path: ${{ runner.temp }}/Mousecape.zip
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "$RUNNER_TEMP/Mousecape.zip" --title "Mousecape $GITHUB_REF_NAME" --generate-notes

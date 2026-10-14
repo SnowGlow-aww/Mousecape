@@ -3,6 +3,19 @@ Mousecape
 
 A free cursor manager for Mac OS 10.8+ built using private, nonintrusive CoreGraphics APIs.
 
+## macOS 26 and 27
+
+This fork makes capes work again on macOS 26 Tahoe and macOS 27:
+
+- Since macOS 26 the system draws the arrow and I-beam from `com.apple.coregraphics.ArrowS` and `IBeamS`, and silently ignores the old `Arrow` and `IBeam` names. Mousecape now applies a cape's Arrow and IBeam under the new names too, so existing capes work unchanged. Capes that already define `ArrowS` or `IBeamS` keep their own versions.
+- Animations longer than 24 frames, which the WindowServer refuses, are thinned out to fit while keeping their speed. The stock wait cursor has 30 frames, so it could never be backed up before and stayed stuck after a reset.
+- Every cursor gets its own backup, and reset now actually removes the backups.
+- The helper re-applies the cape once per display change instead of several times.
+- The app, helper and `mousecloak` are universal binaries, so they run natively on Apple silicon instead of under Rosetta.
+- Sparkle is gone: its update feed no longer exists, so it could never deliver an update.
+
+It needs macOS 12 or later. Builds come from [GitHub Actions](../../actions/workflows/build.yml) and are signed ad hoc, so the first launch needs **System Settings → Privacy & Security → Open Anyway**.
+
 ![](https://github.com/alexzielenski/Mousecape/raw/master/screenshot.png)
 
 ## How it works

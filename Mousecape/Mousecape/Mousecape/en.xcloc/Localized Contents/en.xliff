@@ -661,11 +661,6 @@
         <target>Apply Cape</target>
         <note>Class = "NSMenuItem"; title = "Apply Cape"; ObjectID = "ieJ-T1-eH7";</note>
       </trans-unit>
-      <trans-unit id="igk-i0-oH0.title" xml:space="preserve">
-        <source>Check for Updates...</source>
-        <target>Check for Updates...</target>
-        <note>Class = "NSMenuItem"; title = "Check for Updates..."; ObjectID = "igk-i0-oH0";</note>
-      </trans-unit>
       <trans-unit id="kdx-d9-Lek.title" xml:space="preserve">
         <source>Import Cape</source>
         <target>Import Cape</target>
